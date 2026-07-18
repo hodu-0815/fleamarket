@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>우리동네 플리마켓</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Flea Market</p>
+          <h1>우리동네 플리마켓</h1>
+        </div>
+        <div class="session-panel" id="sessionPanel"></div>
+      </header>
+
+      <nav class="tabbar" aria-label="주요 메뉴">
+        <button class="tab-button active" id="marketTabButton" type="button" data-view="market">마켓</button>
+        <button class="tab-button" id="sellTabButton" type="button" data-view="sell">판매하기</button>
+        <button class="tab-button" id="loginTabButton" type="button" data-view="login">로그인</button>
+      </nav>
+
+      <main class="layout">
+        <section class="view-panel active" id="marketView" data-view-panel="market">
+          <section class="notice-section" aria-labelledby="noticeTitle">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Notice</p>
+                <h2 id="noticeTitle">플리마켓 공지</h2>
+              </div>
+              <button class="icon-button hidden" id="editNoticeButton" type="button" aria-label="공지 편집" title="관리자 공지 편집">
+                <span aria-hidden="true">✎</span>
+              </button>
+            </div>
+            <article class="notice-copy" id="noticeCopy"></article>
+            <p class="admin-help" id="adminHelp">공지 수정은 관리자 계정으로 로그인하면 가능합니다.</p>
+            <form class="notice-editor hidden" id="noticeEditor">
+              <label for="noticeInput">공지 내용</label>
+              <textarea id="noticeInput" rows="5" maxlength="500"></textarea>
+              <div class="form-actions">
+                <button class="secondary-button" id="cancelNoticeButton" type="button">취소</button>
+                <button class="primary-button" type="submit">저장</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="market-section" aria-labelledby="marketTitle">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Gallery</p>
+                <h2 id="marketTitle">판매 중인 물건</h2>
+              </div>
+              <p class="market-count" id="marketCount"></p>
+            </div>
+            <div class="product-grid" id="productGrid"></div>
+          </section>
+        </section>
+
+        <section class="login-section view-panel" id="loginView" data-view-panel="login" aria-labelledby="loginTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Quick Login</p>
+              <h2 id="loginTitle">간단 로그인</h2>
+            </div>
+          </div>
+          <form class="login-form" id="loginForm">
+            <label for="nicknameInput">닉네임</label>
+            <input id="nicknameInput" name="nickname" autocomplete="nickname" maxlength="16" placeholder="예: 민지" required />
+            <label for="passwordInput">간단 비밀번호</label>
+            <input id="passwordInput" name="password" type="password" minlength="2" maxlength="20" placeholder="2자 이상" required />
+            <button class="primary-button wide" type="submit">입장하기</button>
+          </form>
+        </section>
+
+        <section class="upload-section view-panel" id="sellView" data-view-panel="sell" aria-labelledby="uploadTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Sell</p>
+              <h2 id="uploadTitle">판매 글 올리기</h2>
+            </div>
+          </div>
+          <form class="upload-form" id="uploadForm">
+            <label for="productNameInput">상품명</label>
+            <input id="productNameInput" maxlength="40" placeholder="예: 접이식 캠핑 의자" required />
+
+            <label for="photoInput">사진 1장</label>
+            <input id="photoInput" type="file" accept="image/*" required />
+
+            <label for="descriptionInput">간단한 설명</label>
+            <textarea id="descriptionInput" rows="4" maxlength="220" placeholder="상품 상태, 간단한 설명을 작성해주세요."></textarea>
+
+            <label for="priceInput">금액</label>
+            <input id="priceInput" type="number" inputmode="numeric" min="0" step="100" placeholder="예: 15000" required />
+
+            <button class="primary-button wide" type="submit">등록하기</button>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <template id="productTemplate">
+      <article class="product-card">
+        <img class="product-image" alt="" />
+        <div class="product-body">
+          <div class="product-topline">
+            <h3></h3>
+            <strong class="price"></strong>
+          </div>
+          <p class="description"></p>
+          <div class="seller-row">
+            <span class="seller"></span>
+            <span class="posted-at"></span>
+          </div>
+          <div class="like-row">
+            <button class="heart-button" type="button" aria-label="찜하기" title="찜하기">
+              <span aria-hidden="true">♡</span>
+            </button>
+            <div class="like-summary"></div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
