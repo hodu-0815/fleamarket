@@ -61,7 +61,13 @@ async function loadSupabaseEnv() {
         .filter((line) => line && !line.startsWith("#") && line.includes("="))
         .map((line) => {
           const [key, ...valueParts] = line.split("=");
-          return [key.trim(), valueParts.join("=").trim().replace(/^["']|["']$/g, "")];
+          return [
+            key.trim(),
+            valueParts
+              .join("=")
+              .trim()
+              .replace(/^["']|["']$/g, ""),
+          ];
         }),
     );
   } catch {
@@ -143,14 +149,16 @@ async function loadProductsFromSupabase() {
 
 async function uploadProductImage(file) {
   const extension = file.name.split(".").pop() || "png";
-  const safeName = file.name
-    .replace(/\.[^/.]+$/, "")
-    .replace(/[^a-zA-Z0-9_-]/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 48) || "product";
-  const uniqueId = typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
+  const safeName =
+    file.name
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 48) || "product";
+  const uniqueId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
   const filePath = `${Date.now()}-${uniqueId}-${safeName}.${extension}`;
 
   const { error } = await supabaseClient.storage
@@ -162,7 +170,9 @@ async function uploadProductImage(file) {
 
   if (error) throw error;
 
-  const { data } = supabaseClient.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(filePath);
+  const { data } = supabaseClient.storage
+    .from(PRODUCT_IMAGE_BUCKET)
+    .getPublicUrl(filePath);
   return data.publicUrl;
 }
 
@@ -207,7 +217,9 @@ function renderNotice() {
 
 function renderProducts() {
   productGrid.innerHTML = "";
-  const sortedProducts = [...state.products].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const sortedProducts = [...state.products].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+  );
   marketCount.textContent = `${sortedProducts.length}개 등록`;
 
   if (sortedProducts.length === 0) {
@@ -230,18 +242,23 @@ function renderProducts() {
     const heartButton = node.querySelector(".heart-button");
     const heartIcon = heartButton.querySelector("span");
     const likeSummary = node.querySelector(".like-summary");
-    const likedByCurrentUser = state.currentUser && product.likes.includes(state.currentUser.nickname);
+    const likedByCurrentUser =
+      state.currentUser && product.likes.includes(state.currentUser.nickname);
 
     image.src = product.photo;
     image.alt = `${product.name} 사진`;
     title.textContent = product.name;
     price.textContent = formatPrice(product.price);
-    description.textContent = product.description || "간단 설명이 등록되지 않았습니다.";
+    description.textContent =
+      product.description || "간단 설명이 등록되지 않았습니다.";
     seller.textContent = `판매자 ${product.seller}`;
     postedAt.textContent = formatDate(product.createdAt);
     heartButton.classList.toggle("active", Boolean(likedByCurrentUser));
     heartIcon.textContent = likedByCurrentUser ? "♥" : "♡";
-    heartButton.setAttribute("aria-label", likedByCurrentUser ? "찜 취소" : "찜하기");
+    heartButton.setAttribute(
+      "aria-label",
+      likedByCurrentUser ? "찜 취소" : "찜하기",
+    );
     heartButton.title = likedByCurrentUser ? "찜 취소" : "찜하기";
     likeSummary.textContent =
       product.likes.length === 0
@@ -312,7 +329,8 @@ loginForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const isAdminLogin = nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
+  const isAdminLogin =
+    nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
 
   if (nickname === ADMIN_NICKNAME && !isAdminLogin) {
     alert("관리자 비밀번호가 맞지 않습니다.");
@@ -344,11 +362,20 @@ uploadForm.addEventListener("submit", async (event) => {
   const name = document.querySelector("#productNameInput").value.trim();
   const photoFile = document.querySelector("#photoInput").files[0];
   const description = document.querySelector("#descriptionInput").value.trim();
-  const price = document.querySelector("#priceInput").value.replaceAll(",", "").trim();
+  const price = document
+    .querySelector("#priceInput")
+    .value.replaceAll(",", "")
+    .trim();
 
   const numericPrice = Number(price);
 
-  if (!name || !photoFile || !price || !Number.isFinite(numericPrice) || numericPrice < 0) {
+  if (
+    !name ||
+    !photoFile ||
+    !price ||
+    !Number.isFinite(numericPrice) ||
+    numericPrice < 0
+  ) {
     alert("판매 글 정보를 모두 입력해주세요.");
     return;
   }
