@@ -1,12 +1,17 @@
-const STORAGE_KEY = "fleamarket-state-v1";
+import { state, saveState, defaultNotice } from "./store.js";
+import {
+  escapeHtml,
+  formatPrice,
+  formatDate,
+  normalizeNickname,
+} from "./utils.js";
+import { showToast } from "./toast.js";
+import { init as initAuth } from "./auth.js";
+
 const ADMIN_NICKNAME = "admin";
 const ADMIN_PASSWORD = "admin1234";
 const PRODUCT_IMAGE_BUCKET = "product-images";
 
-const defaultNotice =
-  "플리마켓 운영 시간은 오전 11시부터 오후 4시까지입니다.\n판매 글에는 실제 사진과 거래 가능한 금액을 정확히 적어주세요.";
-
-const state = loadState();
 let supabaseClient = null;
 
 const sessionPanel = document.querySelector("#sessionPanel");
@@ -23,26 +28,6 @@ const marketCount = document.querySelector("#marketCount");
 const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
 const adminHelp = document.querySelector("#adminHelp");
-
-function loadState() {
-  const fallback = {
-    currentUser: null,
-    notice: defaultNotice,
-    products: [],
-    users: {},
-  };
-
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return { ...fallback, ...saved };
-  } catch {
-    return fallback;
-  }
-}
-
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
 
 async function loadSupabaseEnv() {
   if (window.ENV?.VITE_SUPABASE_URL && window.ENV?.VITE_SUPABASE_ANON_KEY) {
@@ -90,23 +75,6 @@ async function setupSupabase() {
 
 function isAdmin(user = state.currentUser) {
   return user?.nickname === ADMIN_NICKNAME && user?.isAdmin;
-}
-
-function formatPrice(value) {
-  return `${Number(value).toLocaleString("ko-KR")}원`;
-}
-
-function formatDate(value) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function normalizeNickname(value) {
-  return value.trim().replace(/\s+/g, " ");
 }
 
 function normalizeProduct(row) {
@@ -290,7 +258,7 @@ function setView(viewName) {
 
 function toggleLike(productId) {
   if (!state.currentUser) {
-    alert("로그인 후 찜할 수 있습니다.");
+    showToast("로그인 후 찜할 수 있습니다.", { type: "error" });
     return;
   }
 
@@ -306,15 +274,6 @@ function toggleLike(productId) {
   renderProducts();
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 loginForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -325,7 +284,7 @@ loginForm.addEventListener("submit", (event) => {
   if (!nickname || password.length < 2) return;
 
   if (state.users[nickname] && state.users[nickname].password !== password) {
-    alert("비밀번호가 맞지 않습니다.");
+    showToast("비밀번호가 맞지 않습니다.", { type: "error" });
     return;
   }
 
@@ -333,7 +292,7 @@ loginForm.addEventListener("submit", (event) => {
     nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
 
   if (nickname === ADMIN_NICKNAME && !isAdminLogin) {
-    alert("관리자 비밀번호가 맞지 않습니다.");
+    showToast("관리자 비밀번호가 맞지 않습니다.", { type: "error" });
     return;
   }
 
@@ -355,7 +314,7 @@ uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!state.currentUser) {
-    alert("로그인 후 판매 글을 등록할 수 있습니다.");
+    showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
     return;
   }
 
@@ -376,12 +335,12 @@ uploadForm.addEventListener("submit", async (event) => {
     !Number.isFinite(numericPrice) ||
     numericPrice < 0
   ) {
-    alert("판매 글 정보를 모두 입력해주세요.");
+    showToast("판매 글 정보를 모두 입력해주세요.", { type: "error" });
     return;
   }
 
   if (!supabaseClient) {
-    alert("Supabase 연결을 확인해주세요.");
+    showToast("Supabase 연결을 확인해주세요.", { type: "error" });
     return;
   }
 
@@ -390,7 +349,7 @@ uploadForm.addEventListener("submit", async (event) => {
     imageUrl = await uploadProductImage(photoFile);
   } catch (error) {
     console.error("상품 이미지를 업로드하지 못했습니다.", error);
-    alert("상품 이미지를 업로드하지 못했습니다.");
+    showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
     return;
   }
 
@@ -404,7 +363,7 @@ uploadForm.addEventListener("submit", async (event) => {
 
   if (error) {
     console.error("상품을 등록하지 못했습니다.", error);
-    alert("상품을 등록하지 못했습니다.");
+    showToast("상품을 등록하지 못했습니다.", { type: "error" });
     return;
   }
 
@@ -438,7 +397,7 @@ noticeEditor.addEventListener("submit", (event) => {
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.view === "sell" && !state.currentUser) {
-      alert("로그인 후 판매 글을 등록할 수 있습니다.");
+      showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
       setView("login");
       return;
     }
@@ -448,6 +407,12 @@ tabButtons.forEach((button) => {
 });
 
 async function init() {
+  initAuth({
+    onAuthSuccess: () => {
+      setView("market");
+      render();
+    },
+  });
   render();
   await setupSupabase();
   await loadProductsFromSupabase();
