@@ -1,21 +1,14 @@
 import { state, saveState, defaultNotice } from "./store.js";
-import {
-  escapeHtml,
-  formatPrice,
-  formatDate,
-  normalizeNickname,
-} from "./utils.js";
+import { escapeHtml, formatPrice, formatDate } from "./utils.js";
 import { showToast } from "./toast.js";
-import { init as initAuth } from "./auth.js";
+import { requireAuth, logout } from "./auth.js";
 
 const ADMIN_NICKNAME = "admin";
-const ADMIN_PASSWORD = "admin1234";
 const PRODUCT_IMAGE_BUCKET = "product-images";
 
 let supabaseClient = null;
 
 const sessionPanel = document.querySelector("#sessionPanel");
-const loginForm = document.querySelector("#loginForm");
 const uploadForm = document.querySelector("#uploadForm");
 const noticeCopy = document.querySelector("#noticeCopy");
 const noticeEditor = document.querySelector("#noticeEditor");
@@ -147,12 +140,12 @@ async function uploadProductImage(file) {
 function renderSession() {
   const user = state.currentUser;
 
+  // 가드(requireAuth)를 통과해야 index에 도달하지만, 방어적으로 안내만 노출한다
   if (!user) {
     sessionPanel.innerHTML = `
       <strong>로그인이 필요합니다</strong>
       <p>판매 글 등록과 찜 기능을 사용하려면 입장해주세요.</p>
     `;
-    document.querySelector("#loginTabButton").textContent = "로그인";
     return;
   }
 
@@ -162,14 +155,10 @@ function renderSession() {
     <button class="secondary-button" id="logoutButton" type="button">나가기</button>
   `;
 
+  // 로그아웃은 세션 정리 + 로그인 페이지 이동을 auth.js로 위임
   document.querySelector("#logoutButton").addEventListener("click", () => {
-    state.currentUser = null;
-    saveState();
-    setView("market");
-    render();
+    logout();
   });
-
-  document.querySelector("#loginTabButton").textContent = "내 정보";
 }
 
 function renderNotice() {
@@ -274,42 +263,6 @@ function toggleLike(productId) {
   renderProducts();
 }
 
-loginForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-
-  const formData = new FormData(loginForm);
-  const nickname = normalizeNickname(formData.get("nickname"));
-  const password = formData.get("password").trim();
-
-  if (!nickname || password.length < 2) return;
-
-  if (state.users[nickname] && state.users[nickname].password !== password) {
-    showToast("비밀번호가 맞지 않습니다.", { type: "error" });
-    return;
-  }
-
-  const isAdminLogin =
-    nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
-
-  if (nickname === ADMIN_NICKNAME && !isAdminLogin) {
-    showToast("관리자 비밀번호가 맞지 않습니다.", { type: "error" });
-    return;
-  }
-
-  state.users[nickname] = {
-    password,
-    isAdmin: isAdminLogin,
-  };
-  state.currentUser = {
-    nickname,
-    isAdmin: isAdminLogin,
-  };
-
-  saveState();
-  loginForm.reset();
-  render();
-});
-
 uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -396,23 +349,14 @@ noticeEditor.addEventListener("submit", (event) => {
 
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    if (button.dataset.view === "sell" && !state.currentUser) {
-      showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
-      setView("login");
-      return;
-    }
-
     setView(button.dataset.view);
   });
 });
 
 async function init() {
-  initAuth({
-    onAuthSuccess: () => {
-      setView("market");
-      render();
-    },
-  });
+  // 로그인하지 않은 사용자는 여기서 login.html로 리다이렉트되고 이후 로직은 건너뛴다
+  if (!requireAuth()) return;
+
   render();
   await setupSupabase();
   await loadProductsFromSupabase();

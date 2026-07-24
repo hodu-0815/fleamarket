@@ -127,7 +127,7 @@ h3 {
   top: 10px;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   margin: 0 0 14px;
   padding: 5px;

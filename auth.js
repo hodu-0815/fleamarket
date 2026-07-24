@@ -3,6 +3,10 @@ import { normalizeNickname } from "./utils.js";
 import { signUp } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 
+// 관리자 계정은 별도 회원가입 없이 고정 자격증명으로만 로그인한다
+const ADMIN_NICKNAME = "admin";
+const ADMIN_PASSWORD = "admin1234";
+
 const FIELD_ERROR_IDS = {
   id: "signupIdError",
   password: "signupPasswordError",
@@ -17,34 +21,90 @@ const REASON_MESSAGES = {
   duplicate_id: "이미 사용 중인 아이디입니다.",
 };
 
-let onAuthSuccess = null;
+// ---- 세션 가드 ------------------------------------------------------------
+// 세션 판단 + 페이지 이동을 이 모듈 한 곳에 모아, 각 페이지 진입점의 중복을 없앤다.
 
-export function init(options = {}) {
-  onAuthSuccess = options.onAuthSuccess ?? null;
-
-  const loginForm = document.querySelector("#loginForm");
-  const signupForm = document.querySelector("#signupForm");
-  const loginSwitchRow = document.querySelector("#loginSwitchRow");
-  const backToLoginRow = document.querySelector("#backToLoginRow");
-  const showSignupButton = document.querySelector("#showSignupButton");
-  const showLoginButton = document.querySelector("#showLoginButton");
-  const authTitle = document.querySelector("#loginTitle");
-
-  if (!signupForm || !loginForm) return;
-
-  function setMode(mode) {
-    const signup = mode === "signup";
-    signupForm.classList.toggle("hidden", !signup);
-    backToLoginRow?.classList.toggle("hidden", !signup);
-    loginForm.classList.toggle("hidden", signup);
-    loginSwitchRow?.classList.toggle("hidden", signup);
-    if (authTitle) authTitle.textContent = signup ? "회원가입" : "간단 로그인";
-    if (signup) clearFieldErrors();
+// 보호된 페이지(index)용: 로그인 안 돼 있으면 로그인 페이지로 돌려보낸다
+export function requireAuth(loginUrl = "login.html") {
+  if (!state.currentUser) {
+    window.location.replace(loginUrl);
+    return false;
   }
+  return true;
+}
 
-  showSignupButton?.addEventListener("click", () => setMode("signup"));
-  showLoginButton?.addEventListener("click", () => setMode("login"));
-  signupForm.addEventListener("submit", handleSignup);
+// 로그인/회원가입 페이지용: 이미 로그인 상태면 메인으로 돌려보낸다
+export function requireGuest(homeUrl = "index.html") {
+  if (state.currentUser) {
+    window.location.replace(homeUrl);
+    return false;
+  }
+  return true;
+}
+
+// 로그아웃: 세션을 비우고 로그인 페이지로 이동한다
+export function logout(loginUrl = "login.html") {
+  state.currentUser = null;
+  saveState();
+  window.location.href = loginUrl;
+}
+
+// ---- 로그인 --------------------------------------------------------------
+
+// login.html의 로그인 폼(#loginForm)을 바인딩한다. 성공 시 onSuccess로 이동 위임.
+export function initLogin({ onSuccess } = {}) {
+  const loginForm = document.querySelector("#loginForm");
+  if (!loginForm) return;
+
+  loginForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const formData = new FormData(loginForm);
+    const nickname = normalizeNickname(String(formData.get("nickname") || ""));
+    const password = String(formData.get("password") || "").trim();
+
+    if (!nickname || password.length < 2) return;
+
+    // 기존에 로그인한 적 있는 닉네임이면 비밀번호가 일치해야 통과
+    if (state.users[nickname] && state.users[nickname].password !== password) {
+      showToast("비밀번호가 맞지 않습니다.", { type: "error" });
+      return;
+    }
+
+    const isAdminLogin =
+      nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
+
+    // admin 닉네임인데 관리자 비밀번호가 아니면 일반 로그인으로 흘리지 않고 차단
+    if (nickname === ADMIN_NICKNAME && !isAdminLogin) {
+      showToast("관리자 비밀번호가 맞지 않습니다.", { type: "error" });
+      return;
+    }
+
+    state.users[nickname] = {
+      password,
+      isAdmin: isAdminLogin,
+    };
+    state.currentUser = {
+      nickname,
+      isAdmin: isAdminLogin,
+    };
+
+    saveState();
+    loginForm.reset();
+    onSuccess?.();
+  });
+}
+
+// ---- 회원가입 ------------------------------------------------------------
+
+// signup.html의 회원가입 폼(#signupForm)을 바인딩한다. 성공 시 자동 로그인 + onSuccess.
+export function initSignup({ onSuccess } = {}) {
+  const signupForm = document.querySelector("#signupForm");
+  if (!signupForm) return;
+
+  signupForm.addEventListener("submit", (event) =>
+    handleSignup(event, onSuccess),
+  );
 }
 
 function clearFieldErrors() {
@@ -93,7 +153,7 @@ function validate({ id, password, passwordConfirm, nickname, inviteCode }) {
   return errors;
 }
 
-async function handleSignup(event) {
+async function handleSignup(event, onSuccess) {
   event.preventDefault();
   clearFieldErrors();
 
@@ -125,6 +185,7 @@ async function handleSignup(event) {
     return;
   }
 
+  // 가입 성공 시 곧바로 세션을 채워 자동 로그인 상태로 만든다
   state.currentUser = {
     id: result.user.id,
     nickname: result.user.nickname,
@@ -133,5 +194,5 @@ async function handleSignup(event) {
   saveState();
   form.reset();
   showToast(`${result.user.nickname}님, 가입을 환영해요!`, { type: "success" });
-  onAuthSuccess?.();
+  onSuccess?.();
 }

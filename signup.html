@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>회원가입 · 우리동네 플리마켓</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Flea Market</p>
+          <h1>우리동네 플리마켓</h1>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="login-section" aria-labelledby="signupTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Sign Up</p>
+              <h2 id="signupTitle">회원가입</h2>
+            </div>
+          </div>
+          <form class="signup-form" id="signupForm" novalidate>
+            <label for="signupId">아이디</label>
+            <input id="signupId" name="id" autocomplete="username" maxlength="20" placeholder="영문/숫자/_ 4~20자" required aria-describedby="signupIdError" />
+            <p class="field-error" id="signupIdError" aria-live="assertive"></p>
+
+            <label for="signupPassword">비밀번호</label>
+            <input id="signupPassword" name="password" type="password" autocomplete="new-password" maxlength="30" placeholder="4자 이상" required aria-describedby="signupPasswordError" />
+            <p class="field-error" id="signupPasswordError" aria-live="assertive"></p>
+
+            <label for="signupPasswordConfirm">비밀번호 확인</label>
+            <input id="signupPasswordConfirm" name="passwordConfirm" type="password" autocomplete="new-password" maxlength="30" placeholder="비밀번호 재입력" required aria-describedby="signupPasswordConfirmError" />
+            <p class="field-error" id="signupPasswordConfirmError" aria-live="assertive"></p>
+
+            <label for="signupNickname">닉네임</label>
+            <input id="signupNickname" name="nickname" autocomplete="nickname" maxlength="16" placeholder="예: 민지" required aria-describedby="signupNicknameError" />
+            <p class="field-error" id="signupNicknameError" aria-live="assertive"></p>
+
+            <label for="signupInvite">초대코드</label>
+            <input id="signupInvite" name="inviteCode" maxlength="24" placeholder="초대코드를 입력하세요" required aria-describedby="signupInviteError" />
+            <p class="field-error" id="signupInviteError" aria-live="assertive"></p>
+
+            <button class="primary-button wide" type="submit">회원가입</button>
+          </form>
+          <p class="auth-switch">
+            이미 계정이 있으신가요?
+            <a class="link-button" href="login.html">로그인</a>
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+    <script type="module" src="signup.js"></script>
+  </body>
+</html>
