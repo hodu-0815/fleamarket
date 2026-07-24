@@ -2,11 +2,9 @@ import { state, saveState, defaultNotice } from "./store.js";
 import { escapeHtml, formatPrice, formatDate } from "./utils.js";
 import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
+import { setupSupabase, getClient } from "./supabase-client.js";
 
-const ADMIN_NICKNAME = "admin";
 const PRODUCT_IMAGE_BUCKET = "product-images";
-
-let supabaseClient = null;
 
 const sessionPanel = document.querySelector("#sessionPanel");
 const uploadForm = document.querySelector("#uploadForm");
@@ -22,52 +20,9 @@ const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
 const adminHelp = document.querySelector("#adminHelp");
 
-async function loadSupabaseEnv() {
-  if (window.ENV?.VITE_SUPABASE_URL && window.ENV?.VITE_SUPABASE_ANON_KEY) {
-    return window.ENV;
-  }
-
-  try {
-    const response = await fetch(".env", { cache: "no-store" });
-    if (!response.ok) return {};
-
-    const text = await response.text();
-    return Object.fromEntries(
-      text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#") && line.includes("="))
-        .map((line) => {
-          const [key, ...valueParts] = line.split("=");
-          return [
-            key.trim(),
-            valueParts
-              .join("=")
-              .trim()
-              .replace(/^["']|["']$/g, ""),
-          ];
-        }),
-    );
-  } catch {
-    return {};
-  }
-}
-
-async function setupSupabase() {
-  const env = await loadSupabaseEnv();
-  const supabaseUrl = env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
-
-  if (!window.supabase || !supabaseUrl || !supabaseAnonKey) {
-    console.error("Supabase 설정을 찾을 수 없습니다.");
-    return;
-  }
-
-  supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
-}
-
+// 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
-  return user?.nickname === ADMIN_NICKNAME && user?.isAdmin;
+  return Boolean(user?.isAdmin);
 }
 
 function normalizeProduct(row) {
@@ -88,15 +43,16 @@ function normalizeProduct(row) {
 }
 
 async function loadProductsFromSupabase() {
-  if (!supabaseClient) return;
+  const client = getClient();
+  if (!client) return;
 
-  let { data, error } = await supabaseClient
+  let { data, error } = await client
     .from("products")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error?.code === "42703") {
-    ({ data, error } = await supabaseClient.from("products").select("*"));
+    ({ data, error } = await client.from("products").select("*"));
   }
 
   if (error) {
@@ -122,7 +78,8 @@ async function uploadProductImage(file) {
       : Math.random().toString(36).slice(2);
   const filePath = `${Date.now()}-${uniqueId}-${safeName}.${extension}`;
 
-  const { error } = await supabaseClient.storage
+  const client = getClient();
+  const { error } = await client.storage
     .from(PRODUCT_IMAGE_BUCKET)
     .upload(filePath, file, {
       cacheControl: "3600",
@@ -131,7 +88,7 @@ async function uploadProductImage(file) {
 
   if (error) throw error;
 
-  const { data } = supabaseClient.storage
+  const { data } = client.storage
     .from(PRODUCT_IMAGE_BUCKET)
     .getPublicUrl(filePath);
   return data.publicUrl;
@@ -167,7 +124,7 @@ function renderNotice() {
   editNoticeButton.classList.toggle("hidden", !isAdmin());
   adminHelp.textContent = isAdmin()
     ? "연필 버튼을 눌러 공지사항을 수정할 수 있습니다."
-    : "공지 수정은 관리자 계정(admin / admin1234)으로 로그인하면 가능합니다.";
+    : "공지 수정은 관리자 계정으로 로그인하면 가능합니다.";
   noticeEditor.classList.add("hidden");
   noticeCopy.classList.remove("hidden");
 }
@@ -292,7 +249,7 @@ uploadForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!supabaseClient) {
+  if (!getClient()) {
     showToast("Supabase 연결을 확인해주세요.", { type: "error" });
     return;
   }
@@ -306,7 +263,7 @@ uploadForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const { error } = await supabaseClient.from("products").insert({
+  const { error } = await getClient().from("products").insert({
     name,
     image: imageUrl,
     description,
@@ -354,11 +311,14 @@ tabButtons.forEach((button) => {
 });
 
 async function init() {
-  // 로그인하지 않은 사용자는 여기서 login.html로 리다이렉트되고 이후 로직은 건너뛴다
-  if (!requireAuth()) return;
+  // Supabase 클라이언트를 먼저 준비해야 세션 확인(requireAuth)이 가능하다
+  await setupSupabase();
+
+  // 로그인하지 않은 사용자는 여기서 login.html로 리다이렉트되고 이후 로직은 건너뛴다.
+  // requireAuth가 세션을 확인하며 state.currentUser를 채운 뒤 화면을 그린다.
+  if (!(await requireAuth())) return;
 
   render();
-  await setupSupabase();
   await loadProductsFromSupabase();
 }
 

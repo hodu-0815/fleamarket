@@ -1,11 +1,6 @@
-import { state, saveState } from "./store.js";
 import { normalizeNickname } from "./utils.js";
-import { signUp } from "./supabase-client.js";
+import { signUp, signIn, signOut, getSession } from "./supabase-client.js";
 import { showToast } from "./toast.js";
-
-// 관리자 계정은 별도 회원가입 없이 고정 자격증명으로만 로그인한다
-const ADMIN_NICKNAME = "admin";
-const ADMIN_PASSWORD = "admin1234";
 
 const FIELD_ERROR_IDS = {
   id: "signupIdError",
@@ -15,18 +10,28 @@ const FIELD_ERROR_IDS = {
   inviteCode: "signupInviteError",
 };
 
+// supabase-client의 reason 코드를 사용자 문구로 매핑한다
 const REASON_MESSAGES = {
   invalid_code: "존재하지 않는 초대코드입니다.",
   used_code: "이미 사용된 초대코드입니다.",
   duplicate_id: "이미 사용 중인 아이디입니다.",
+  duplicate_nickname: "이미 사용 중인 닉네임입니다.",
+  nickname_required: "닉네임을 입력해주세요.",
+  invalid_credentials: "아이디 또는 비밀번호가 맞지 않습니다.",
+  email_confirmation_required:
+    "이메일 확인 설정이 켜져 있어 가입을 완료할 수 없습니다. 관리자에게 문의해주세요.",
+  no_client: "서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.",
+  unknown: "회원가입에 실패했습니다. 잠시 후 다시 시도해주세요.",
 };
 
 // ---- 세션 가드 ------------------------------------------------------------
 // 세션 판단 + 페이지 이동을 이 모듈 한 곳에 모아, 각 페이지 진입점의 중복을 없앤다.
+// Supabase Auth 세션은 비동기로 확인되므로 가드 함수도 async로 동작한다.
 
 // 보호된 페이지(index)용: 로그인 안 돼 있으면 로그인 페이지로 돌려보낸다
-export function requireAuth(loginUrl = "login.html") {
-  if (!state.currentUser) {
+export async function requireAuth(loginUrl = "login.html") {
+  const user = await getSession();
+  if (!user) {
     window.location.replace(loginUrl);
     return false;
   }
@@ -34,18 +39,18 @@ export function requireAuth(loginUrl = "login.html") {
 }
 
 // 로그인/회원가입 페이지용: 이미 로그인 상태면 메인으로 돌려보낸다
-export function requireGuest(homeUrl = "index.html") {
-  if (state.currentUser) {
+export async function requireGuest(homeUrl = "index.html") {
+  const user = await getSession();
+  if (user) {
     window.location.replace(homeUrl);
     return false;
   }
   return true;
 }
 
-// 로그아웃: 세션을 비우고 로그인 페이지로 이동한다
-export function logout(loginUrl = "login.html") {
-  state.currentUser = null;
-  saveState();
+// 로그아웃: Supabase 세션을 정리하고 로그인 페이지로 이동한다
+export async function logout(loginUrl = "login.html") {
+  await signOut();
   window.location.href = loginUrl;
 }
 
@@ -56,40 +61,24 @@ export function initLogin({ onSuccess } = {}) {
   const loginForm = document.querySelector("#loginForm");
   if (!loginForm) return;
 
-  loginForm.addEventListener("submit", (event) => {
+  loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const formData = new FormData(loginForm);
-    const nickname = normalizeNickname(String(formData.get("nickname") || ""));
+    const id = String(formData.get("id") || "").trim();
     const password = String(formData.get("password") || "").trim();
 
-    if (!nickname || password.length < 2) return;
+    if (!id || password.length < 2) return;
 
-    // 기존에 로그인한 적 있는 닉네임이면 비밀번호가 일치해야 통과
-    if (state.users[nickname] && state.users[nickname].password !== password) {
-      showToast("비밀번호가 맞지 않습니다.", { type: "error" });
+    const result = await signIn({ id, password });
+    if (!result.ok) {
+      showToast(REASON_MESSAGES[result.reason] || REASON_MESSAGES.unknown, {
+        type: "error",
+      });
       return;
     }
 
-    const isAdminLogin =
-      nickname === ADMIN_NICKNAME && password === ADMIN_PASSWORD;
-
-    // admin 닉네임인데 관리자 비밀번호가 아니면 일반 로그인으로 흘리지 않고 차단
-    if (nickname === ADMIN_NICKNAME && !isAdminLogin) {
-      showToast("관리자 비밀번호가 맞지 않습니다.", { type: "error" });
-      return;
-    }
-
-    state.users[nickname] = {
-      password,
-      isAdmin: isAdminLogin,
-    };
-    state.currentUser = {
-      nickname,
-      isAdmin: isAdminLogin,
-    };
-
-    saveState();
+    // 세션은 signIn 내부에서 state.currentUser에 채워진다
     loginForm.reset();
     onSuccess?.();
   });
@@ -153,6 +142,15 @@ function validate({ id, password, passwordConfirm, nickname, inviteCode }) {
   return errors;
 }
 
+// 회원가입 reason 중 특정 입력 필드에 붙여야 자연스러운 것들은 필드 에러로 표시한다
+const FIELD_REASONS = {
+  invalid_code: "inviteCode",
+  used_code: "inviteCode",
+  duplicate_id: "id",
+  duplicate_nickname: "nickname",
+  nickname_required: "nickname",
+};
+
 async function handleSignup(event, onSuccess) {
   event.preventDefault();
   clearFieldErrors();
@@ -179,19 +177,18 @@ async function handleSignup(event, onSuccess) {
 
   const result = await signUp({ id, password, nickname, inviteCode });
   if (!result.ok) {
-    showToast(REASON_MESSAGES[result.reason] || "회원가입에 실패했습니다.", {
-      type: "error",
-    });
+    const message = REASON_MESSAGES[result.reason] || REASON_MESSAGES.unknown;
+    // 초대코드/아이디/닉네임 문제는 해당 입력칸 아래에 붙여 보여준다
+    const field = FIELD_REASONS[result.reason];
+    if (field) {
+      showFieldErrors({ [field]: message });
+    } else {
+      showToast(message, { type: "error" });
+    }
     return;
   }
 
-  // 가입 성공 시 곧바로 세션을 채워 자동 로그인 상태로 만든다
-  state.currentUser = {
-    id: result.user.id,
-    nickname: result.user.nickname,
-    isAdmin: result.user.isAdmin,
-  };
-  saveState();
+  // 세션은 signUp 내부에서 state.currentUser에 채워져 자동 로그인 상태가 된다
   form.reset();
   showToast(`${result.user.nickname}님, 가입을 환영해요!`, { type: "success" });
   onSuccess?.();

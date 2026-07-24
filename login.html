@@ -24,10 +24,10 @@
             </div>
           </div>
           <form class="login-form" id="loginForm">
-            <label for="nicknameInput">닉네임</label>
-            <input id="nicknameInput" name="nickname" autocomplete="nickname" maxlength="16" placeholder="예: 민지" required />
-            <label for="passwordInput">간단 비밀번호</label>
-            <input id="passwordInput" name="password" type="password" minlength="2" maxlength="20" placeholder="2자 이상" required />
+            <label for="idInput">아이디</label>
+            <input id="idInput" name="id" autocomplete="username" maxlength="20" placeholder="가입한 아이디" required />
+            <label for="passwordInput">비밀번호</label>
+            <input id="passwordInput" name="password" type="password" minlength="2" maxlength="30" placeholder="비밀번호" required />
             <button class="primary-button wide" type="submit">입장하기</button>
           </form>
           <p class="auth-switch">
@@ -40,6 +40,7 @@
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="module" src="login.js"></script>
   </body>
 </html>
