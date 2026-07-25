@@ -1,13 +1,9 @@
 import { state, saveState, defaultNotice } from "./store.js";
 import { escapeHtml, formatPrice, formatDate } from "./utils.js";
-import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
 import { setupSupabase, getClient } from "./supabase-client.js";
 
-const PRODUCT_IMAGE_BUCKET = "product-images";
-
 const sessionPanel = document.querySelector("#sessionPanel");
-const uploadForm = document.querySelector("#uploadForm");
 const noticeCopy = document.querySelector("#noticeCopy");
 const noticeEditor = document.querySelector("#noticeEditor");
 const noticeInput = document.querySelector("#noticeInput");
@@ -29,69 +25,37 @@ function normalizeProduct(row) {
   return {
     id: row.id,
     name: row.name,
-    photo: row.image || row.photo || "",
     description: row.description || "",
     price: Number(row.price || 0),
+    category: row.category || "기타",
+    image: row.image || "",
     seller: row.seller || "알 수 없음",
-    likes: Array.isArray(row.likes)
-      ? row.likes
-      : Array.isArray(row.liked_by)
-        ? row.liked_by
-        : [],
-    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    createdAt: row.created_at || new Date().toISOString(),
   };
 }
 
 async function loadProductsFromSupabase() {
   const client = getClient();
-  if (!client) return;
-
-  let { data, error } = await client
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error?.code === "42703") {
-    ({ data, error } = await client.from("products").select("*"));
+  if (!client) {
+    state.products = [];
+    renderProducts();
+    return;
   }
+
+  const { data, error } = await client
+    .from("products")
+    .select("id, name, description, price, category, image, seller, created_at")
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("상품 목록을 불러오지 못했습니다.", error);
+    state.products = [];
+    renderProducts();
     return;
   }
 
   state.products = (data || []).map(normalizeProduct);
   renderProducts();
-}
-
-async function uploadProductImage(file) {
-  const extension = file.name.split(".").pop() || "png";
-  const safeName =
-    file.name
-      .replace(/\.[^/.]+$/, "")
-      .replace(/[^a-zA-Z0-9_-]/g, "-")
-      .replace(/-+/g, "-")
-      .slice(0, 48) || "product";
-  const uniqueId =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
-  const filePath = `${Date.now()}-${uniqueId}-${safeName}.${extension}`;
-
-  const client = getClient();
-  const { error } = await client.storage
-    .from(PRODUCT_IMAGE_BUCKET)
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-
-  if (error) throw error;
-
-  const { data } = client.storage
-    .from(PRODUCT_IMAGE_BUCKET)
-    .getPublicUrl(filePath);
-  return data.publicUrl;
 }
 
 function renderSession() {
@@ -150,36 +114,24 @@ function renderProducts() {
     const image = node.querySelector(".product-image");
     const title = node.querySelector("h3");
     const price = node.querySelector(".price");
-    const description = node.querySelector(".description");
+    const category = node.querySelector(".description");
     const seller = node.querySelector(".seller");
     const postedAt = node.querySelector(".posted-at");
-    const heartButton = node.querySelector(".heart-button");
-    const heartIcon = heartButton.querySelector("span");
-    const likeSummary = node.querySelector(".like-summary");
-    const likedByCurrentUser =
-      state.currentUser && product.likes.includes(state.currentUser.nickname);
+    const likeRow = node.querySelector(".like-row");
 
-    image.src = product.photo;
+    if (product.image) {
+      image.src = product.image;
+    } else {
+      image.removeAttribute("src");
+    }
     image.alt = `${product.name} 사진`;
     title.textContent = product.name;
     price.textContent = formatPrice(product.price);
-    description.textContent =
-      product.description || "간단 설명이 등록되지 않았습니다.";
+    category.textContent = product.category;
     seller.textContent = `판매자 ${product.seller}`;
     postedAt.textContent = formatDate(product.createdAt);
-    heartButton.classList.toggle("active", Boolean(likedByCurrentUser));
-    heartIcon.textContent = likedByCurrentUser ? "♥" : "♡";
-    heartButton.setAttribute(
-      "aria-label",
-      likedByCurrentUser ? "찜 취소" : "찜하기",
-    );
-    heartButton.title = likedByCurrentUser ? "찜 취소" : "찜하기";
-    likeSummary.textContent =
-      product.likes.length === 0
-        ? "아직 찜한 사람이 없습니다"
-        : `${product.likes.length}명 · ${product.likes.join(", ")}`;
+    likeRow?.remove();
 
-    heartButton.addEventListener("click", () => toggleLike(product.id));
     productGrid.append(card);
   });
 }
@@ -201,86 +153,6 @@ function setView(viewName) {
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-
-function toggleLike(productId) {
-  if (!state.currentUser) {
-    showToast("로그인 후 찜할 수 있습니다.", { type: "error" });
-    return;
-  }
-
-  const product = state.products.find((item) => item.id === productId);
-  if (!product) return;
-
-  const nickname = state.currentUser.nickname;
-  product.likes = product.likes.includes(nickname)
-    ? product.likes.filter((name) => name !== nickname)
-    : [...product.likes, nickname];
-
-  saveState();
-  renderProducts();
-}
-
-uploadForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  if (!state.currentUser) {
-    showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
-    return;
-  }
-
-  const name = document.querySelector("#productNameInput").value.trim();
-  const photoFile = document.querySelector("#photoInput").files[0];
-  const description = document.querySelector("#descriptionInput").value.trim();
-  const price = document
-    .querySelector("#priceInput")
-    .value.replaceAll(",", "")
-    .trim();
-
-  const numericPrice = Number(price);
-
-  if (
-    !name ||
-    !photoFile ||
-    !price ||
-    !Number.isFinite(numericPrice) ||
-    numericPrice < 0
-  ) {
-    showToast("판매 글 정보를 모두 입력해주세요.", { type: "error" });
-    return;
-  }
-
-  if (!getClient()) {
-    showToast("Supabase 연결을 확인해주세요.", { type: "error" });
-    return;
-  }
-
-  let imageUrl = "";
-  try {
-    imageUrl = await uploadProductImage(photoFile);
-  } catch (error) {
-    console.error("상품 이미지를 업로드하지 못했습니다.", error);
-    showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
-    return;
-  }
-
-  const { error } = await getClient().from("products").insert({
-    name,
-    image: imageUrl,
-    description,
-    price: numericPrice,
-    seller: state.currentUser.nickname,
-  });
-
-  if (error) {
-    console.error("상품을 등록하지 못했습니다.", error);
-    showToast("상품을 등록하지 못했습니다.", { type: "error" });
-    return;
-  }
-
-  uploadForm.reset();
-  await loadProductsFromSupabase();
-  setView("market");
-});
 
 editNoticeButton.addEventListener("click", () => {
   if (!isAdmin()) return;
