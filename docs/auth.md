@@ -26,7 +26,7 @@
 
 ## 3. Supabase 쿼리
 
-- `invite_codes`: 코드 조회(유효/미사용 확인), 가입 성공 시 `used_by`/`used_at` 업데이트
+- `invite_codes`: 코드 존재 여부만 확인(재사용 가능). 가입 성공 시 `used_by`/`used_at`은 마지막 사용 기록으로만 갱신
 - `profiles`: 신규 프로필 insert (id, nickname, 필수 필드)
 - 인증: Supabase Auth 사용 여부는 스키마 확정 시 결정 (PROJECT_PLAN 3절 `password` 주석 참고)
 

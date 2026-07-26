@@ -49,8 +49,8 @@
 - `profiles` — 사용자 프로필
   - `id` (auth user id), `nickname`, `password`(또는 Supabase Auth 사용시 불필요), `is_admin`
   - Phase 2: `relationship`(유진과의 관계, text), `bio`(자기소개 한줄), `visit_time`, `dinner`(boolean/enum), `avatar_url`
-- `invite_codes` — 초대코드 관리
-  - `code`, `issued_at`, `used_by`(nullable, 사용된 profile id), `used_at`
+- `invite_codes` — 초대코드 관리 (재사용 가능)
+  - `code`, `created_at`, `used_by`(nullable, 마지막 사용 profile id), `used_at`
 - `products` — 상품
   - `id`, `owner_id`(profiles 참조), `title`, `price`, `description`, `category`(옷/전자기기/인테리어/잡화/화장품/레저/주방용품/재능 중 하나), `thumbnail_url`, `created_at`
 - `product_images` — 상세컷 (Phase 2, 최대 3장)

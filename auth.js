@@ -18,6 +18,7 @@ const REASON_MESSAGES = {
   duplicate_nickname: "이미 사용 중인 닉네임입니다.",
   nickname_required: "닉네임을 입력해주세요.",
   invalid_credentials: "아이디 또는 비밀번호가 맞지 않습니다.",
+  password_too_short: "비밀번호는 6자 이상이어야 합니다.",
   email_confirmation_required:
     "이메일 확인 설정이 켜져 있어 가입을 완료할 수 없습니다. 관리자에게 문의해주세요.",
   no_client: "서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.",
@@ -119,10 +120,11 @@ function validate({ id, password, passwordConfirm, nickname, inviteCode }) {
     errors.id = "아이디는 영문/숫자/_ 4~20자로 입력해주세요.";
   }
 
+  // Supabase Auth 기본 최소 길이가 6자라 프론트도 맞춰 미리 막는다
   if (!password) {
     errors.password = "비밀번호를 입력해주세요.";
-  } else if (password.length < 4) {
-    errors.password = "비밀번호는 4자 이상이어야 합니다.";
+  } else if (password.length < 6) {
+    errors.password = "비밀번호는 6자 이상이어야 합니다.";
   }
 
   if (password && passwordConfirm !== password) {
@@ -146,6 +148,7 @@ function validate({ id, password, passwordConfirm, nickname, inviteCode }) {
 const FIELD_REASONS = {
   invalid_code: "inviteCode",
   used_code: "inviteCode",
+  password_too_short: "password",
   duplicate_id: "id",
   duplicate_nickname: "nickname",
   nickname_required: "nickname",

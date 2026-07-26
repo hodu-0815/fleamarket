@@ -120,6 +120,10 @@ export async function signUp({ id, password, nickname, inviteCode }) {
     if (/already registered|already exists|user already/i.test(error.message)) {
       return { ok: false, reason: "duplicate_id" };
     }
+    // Auth 대시보드 최소 비밀번호 길이(기본 6자)보다 짧을 때
+    if (/password/i.test(error.message) && /at least|characters|length|short/i.test(error.message)) {
+      return { ok: false, reason: "password_too_short" };
+    }
     console.error("회원가입에 실패했습니다.", error);
     return { ok: false, reason: "unknown" };
   }
