@@ -244,7 +244,86 @@ function saveCustomCategory(category) {
     CUSTOM_CATEGORIES_STORAGE_KEY,
     JSON.stringify([...savedCategories, normalizedCategory]),
   );
+  appendCustomCategoryOption(normalizedCategory);
 }
+function appendCustomCategoryOption(category) {
+  const categorySelect = document.querySelector("#categorySelect");
+  if (!categorySelect) return;
+
+  const normalizedCategory = category.trim();
+  if (!normalizedCategory) return;
+
+  const optionExists = Array.from(categorySelect.options).some(
+    (option) => option.value === normalizedCategory,
+  );
+
+  if (optionExists) return;
+
+  const option = document.createElement("option");
+  option.value = normalizedCategory;
+  option.textContent = normalizedCategory;
+
+  const otherOption = Array.from(categorySelect.options).find(
+    (item) => item.value === "기타",
+  );
+
+  categorySelect.insertBefore(option, otherOption || null);
+}
+
+function loadCustomCategoryOptions() {
+  const categorySelect = document.querySelector("#categorySelect");
+  if (!categorySelect) return;
+
+  let savedCategories = [];
+
+  try {
+    const parsedCategories = JSON.parse(
+      localStorage.getItem(CUSTOM_CATEGORIES_STORAGE_KEY),
+    );
+
+    savedCategories = Array.isArray(parsedCategories)
+      ? parsedCategories
+      : [];
+  } catch {
+    savedCategories = [];
+  }
+
+  savedCategories.forEach((category) => {
+    const normalizedCategory = category.trim();
+    if (!normalizedCategory) return;
+
+    const optionExists = Array.from(categorySelect.options).some(
+      (option) => option.value === normalizedCategory,
+    );
+
+    if (optionExists) return;
+
+    const option = document.createElement("option");
+    option.value = normalizedCategory;
+    option.textContent = normalizedCategory;
+
+    const otherOption = Array.from(categorySelect.options).find(
+      (item) => item.value === "기타",
+    );
+
+    categorySelect.insertBefore(option, otherOption || null);
+  });
+}
+
+function updateCategoryCustomInputVisibility() {
+  const categorySelect = document.querySelector("#categorySelect");
+  const categoryCustomInput = document.querySelector("#categoryCustomInput");
+
+  if (!categorySelect || !categoryCustomInput) return;
+
+  if (categorySelect.value === "기타") {
+    categoryCustomInput.classList.remove("hidden");
+  } else {
+    categoryCustomInput.classList.add("hidden");
+    categoryCustomInput.value = "";
+  }
+}
+
 
 uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -288,25 +367,31 @@ uploadForm.addEventListener("submit", async (event) => {
     showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
     return;
   }
+const categorySelect = document.querySelector("#categorySelect");
+const categoryCustomInput = document.querySelector("#categoryCustomInput");
 
+const category =
+  categorySelect?.value === "기타"
+    ? categoryCustomInput?.value.trim()
+    : categorySelect?.value;
+    console.log("category:", category);
+
+if (categorySelect?.value === "기타") {
+  saveCustomCategory(category || "");
+}
   const { error } = await getClient().from("products").insert({
     name,
     image: imageUrl,
     description,
     price: numericPrice,
     seller: state.currentUser.nickname,
+    category,
   });
 
   if (error) {
     console.error("상품을 등록하지 못했습니다.", error);
     showToast("상품을 등록하지 못했습니다.", { type: "error" });
     return;
-  }
-
-  const categorySelect = document.querySelector("#categorySelect");
-  const categoryCustomInput = document.querySelector("#categoryCustomInput");
-  if (categorySelect?.value === "기타") {
-    saveCustomCategory(categoryCustomInput?.value || "");
   }
 
   uploadForm.reset();
@@ -341,6 +426,13 @@ tabButtons.forEach((button) => {
     setView(button.dataset.view);
   });
 });
+
+loadCustomCategoryOptions();
+updateCategoryCustomInputVisibility();
+
+document
+  .querySelector("#categorySelect")
+  ?.addEventListener("change", updateCategoryCustomInputVisibility);
 
 async function init() {
   // Supabase 클라이언트를 먼저 준비해야 세션 확인(requireAuth)이 가능하다
