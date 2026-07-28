@@ -74,6 +74,17 @@
             <label for="descriptionInput">간단한 설명</label>
             <textarea id="descriptionInput" rows="4" maxlength="220" placeholder="상품 상태, 간단한 설명을 작성해주세요."></textarea>
 
+            <label for="categorySelect">카테고리</label>
+            <select id="categorySelect" required>
+              <option value="전자기기">전자기기</option>
+              <option value="의류">의류</option>
+              <option value="도서">도서</option>
+              <option value="생활용품">생활용품</option>
+              <option value="가구">가구</option>
+              <option value="기타">기타(직접 입력)</option>
+            </select>
+            <input id="categoryCustomInput" class="hidden" type="text" placeholder="카테고리를 입력해주세요." />
+
             <label for="priceInput">금액</label>
             <input id="priceInput" type="number" inputmode="numeric" min="0" step="100" placeholder="예: 15000" required />
 
