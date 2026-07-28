@@ -5,6 +5,7 @@ import { requireAuth, logout } from "./auth.js";
 import { setupSupabase, getClient } from "./supabase-client.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
+const CUSTOM_CATEGORIES_STORAGE_KEY = "fleamarket-custom-categories";
 
 const sessionPanel = document.querySelector("#sessionPanel");
 const uploadForm = document.querySelector("#uploadForm");
@@ -223,6 +224,28 @@ function toggleLike(productId) {
   renderProducts();
 }
 
+function saveCustomCategory(category) {
+  const normalizedCategory = category.trim();
+  if (!normalizedCategory) return;
+
+  let savedCategories = [];
+  try {
+    const parsedCategories = JSON.parse(
+      localStorage.getItem(CUSTOM_CATEGORIES_STORAGE_KEY),
+    );
+    savedCategories = Array.isArray(parsedCategories) ? parsedCategories : [];
+  } catch {
+    savedCategories = [];
+  }
+
+  if (savedCategories.includes(normalizedCategory)) return;
+
+  localStorage.setItem(
+    CUSTOM_CATEGORIES_STORAGE_KEY,
+    JSON.stringify([...savedCategories, normalizedCategory]),
+  );
+}
+
 uploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -278,6 +301,12 @@ uploadForm.addEventListener("submit", async (event) => {
     console.error("상품을 등록하지 못했습니다.", error);
     showToast("상품을 등록하지 못했습니다.", { type: "error" });
     return;
+  }
+
+  const categorySelect = document.querySelector("#categorySelect");
+  const categoryCustomInput = document.querySelector("#categoryCustomInput");
+  if (categorySelect?.value === "기타") {
+    saveCustomCategory(categoryCustomInput?.value || "");
   }
 
   uploadForm.reset();
