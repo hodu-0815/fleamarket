@@ -224,26 +224,35 @@ function toggleLike(productId) {
   renderProducts();
 }
 
-function saveCustomCategory(category) {
+async function saveCustomCategory(category) {
   const normalizedCategory = category.trim();
   if (!normalizedCategory) return;
 
-  let savedCategories = [];
-  try {
-    const parsedCategories = JSON.parse(
-      localStorage.getItem(CUSTOM_CATEGORIES_STORAGE_KEY),
-    );
-    savedCategories = Array.isArray(parsedCategories) ? parsedCategories : [];
-  } catch {
-    savedCategories = [];
+  const client = getClient();
+  if (!client) return;
+
+  const { data: savedCategories, error: selectError } = await client
+    .from("categories")
+    .select("name")
+    .eq("name", normalizedCategory)
+    .limit(1);
+
+  if (selectError) {
+    console.error("카테고리 중복 확인에 실패했습니다.", selectError);
+    return;
   }
 
-  if (savedCategories.includes(normalizedCategory)) return;
+  if (savedCategories?.length) return;
 
-  localStorage.setItem(
-    CUSTOM_CATEGORIES_STORAGE_KEY,
-    JSON.stringify([...savedCategories, normalizedCategory]),
-  );
+  const { error } = await client.from("categories").insert({
+    name: normalizedCategory,
+  });
+
+  if (error) {
+    console.error("카테고리를 저장하지 못했습니다.", error);
+    return;
+  }
+
   appendCustomCategoryOption(normalizedCategory);
 }
 function appendCustomCategoryOption(category) {
@@ -270,43 +279,19 @@ function appendCustomCategoryOption(category) {
   categorySelect.insertBefore(option, otherOption || null);
 }
 
-function loadCustomCategoryOptions() {
-  const categorySelect = document.querySelector("#categorySelect");
-  if (!categorySelect) return;
+async function loadCustomCategoryOptions() {
+  const client = getClient();
+  if (!client) return;
 
-  let savedCategories = [];
+  const { data, error } = await client.from("categories").select("name");
 
-  try {
-    const parsedCategories = JSON.parse(
-      localStorage.getItem(CUSTOM_CATEGORIES_STORAGE_KEY),
-    );
-
-    savedCategories = Array.isArray(parsedCategories)
-      ? parsedCategories
-      : [];
-  } catch {
-    savedCategories = [];
+  if (error) {
+    console.error("카테고리를 불러오지 못했습니다.", error);
+    return;
   }
 
-  savedCategories.forEach((category) => {
-    const normalizedCategory = category.trim();
-    if (!normalizedCategory) return;
-
-    const optionExists = Array.from(categorySelect.options).some(
-      (option) => option.value === normalizedCategory,
-    );
-
-    if (optionExists) return;
-
-    const option = document.createElement("option");
-    option.value = normalizedCategory;
-    option.textContent = normalizedCategory;
-
-    const otherOption = Array.from(categorySelect.options).find(
-      (item) => item.value === "기타",
-    );
-
-    categorySelect.insertBefore(option, otherOption || null);
+  (data || []).forEach((category) => {
+    appendCustomCategoryOption(category.name || "");
   });
 }
 
