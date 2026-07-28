@@ -109,7 +109,10 @@ function renderSession() {
   sessionPanel.innerHTML = `
     <strong>${escapeHtml(user.nickname)}${isAdmin(user) ? " · 관리자" : ""}</strong>
     <p>${isAdmin(user) ? "공지 편집 권한이 있습니다." : "판매 등록과 찜하기가 가능합니다."}</p>
-    <button class="secondary-button" id="logoutButton" type="button">나가기</button>
+    <div class="session-actions">
+      <a class="secondary-button session-link" href="mypage.html">마이페이지</a>
+      <button class="secondary-button" id="logoutButton" type="button">나가기</button>
+    </div>
   `;
 
   // 로그아웃은 세션 정리 + 로그인 페이지 이동을 auth.js로 위임

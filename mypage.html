@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>마이페이지 · 우리동네 플리마켓</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">My Page</p>
+          <h1>마이페이지</h1>
+        </div>
+        <div class="session-panel" id="mypageSessionPanel"></div>
+      </header>
+
+      <main class="layout mypage-layout">
+        <section class="mypage-section" aria-labelledby="likedTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Wishlist</p>
+              <h2 id="likedTitle">내 찜</h2>
+            </div>
+            <p class="market-count" id="likedCount"></p>
+          </div>
+          <div class="product-grid" id="likedGrid"></div>
+        </section>
+
+        <section class="mypage-section" aria-labelledby="myProductsTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">My Listings</p>
+              <h2 id="myProductsTitle">내가 올린 상품</h2>
+            </div>
+            <p class="market-count" id="myProductsCount"></p>
+          </div>
+          <div class="product-grid" id="myProductsGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="mypageProductTemplate">
+      <article class="product-card">
+        <img class="product-image" alt="" />
+        <div class="product-body">
+          <div class="product-topline">
+            <h3></h3>
+            <strong class="price"></strong>
+          </div>
+          <div class="seller-row">
+            <span class="seller"></span>
+            <span class="posted-at"></span>
+          </div>
+          <div class="mypage-card-actions"></div>
+        </div>
+      </article>
+    </template>
+
+    <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="mypage.js"></script>
+  </body>
+</html>

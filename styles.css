@@ -98,7 +98,8 @@ h3 {
 .notice-section,
 .login-section,
 .upload-section,
-.market-section {
+.market-section,
+.mypage-section {
   background: rgba(255, 250, 242, 0.92);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -120,6 +121,20 @@ h3 {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
+}
+
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.session-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .tabbar {
@@ -168,8 +183,17 @@ h3 {
 .notice-section,
 .login-section,
 .upload-section,
-.market-section {
+.market-section,
+.mypage-section {
   padding: 16px;
+}
+
+.mypage-layout {
+  gap: 14px;
+}
+
+.mypage-card-actions {
+  display: grid;
 }
 
 .notice-section {
