@@ -425,27 +425,27 @@ textarea {
   line-height: 1.4;
 }
 
-.seller-row,
+..product-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.heart-icon {
+  color: var(--heart);
+  font-size: 1rem;
+}
+
 .like-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 
-.seller-row {
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.heart-button {
-  flex: 0 0 36px;
-  width: 36px;
-  min-height: 36px;
-  color: var(--heart);
-  background: #ffe8ec;
-  font-size: 1.2rem;
-  line-height: 1;
+.like-count {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .heart-button.active {

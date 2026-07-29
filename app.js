@@ -157,12 +157,8 @@ function renderProducts() {
     const image = node.querySelector(".product-image");
     const title = node.querySelector("h3");
     const price = node.querySelector(".price");
-    const description = node.querySelector(".description");
     const seller = node.querySelector(".seller");
-    const postedAt = node.querySelector(".posted-at");
-    const heartButton = node.querySelector(".heart-button");
-    const heartIcon = heartButton.querySelector("span");
-    const likeSummary = node.querySelector(".like-summary");
+    const likeCount = node.querySelector(".like-count");
     const likedByCurrentUser =
       state.currentUser && product.likes.includes(state.currentUser.nickname);
 
@@ -170,23 +166,8 @@ function renderProducts() {
     image.alt = `${product.name} 사진`;
     title.textContent = product.name;
     price.textContent = formatPrice(product.price);
-    description.textContent =
-      product.description || "간단 설명이 등록되지 않았습니다.";
-    seller.textContent = `판매자 ${product.seller}`;
-    postedAt.textContent = formatDate(product.createdAt);
-    heartButton.classList.toggle("active", Boolean(likedByCurrentUser));
-    heartIcon.textContent = likedByCurrentUser ? "♥" : "♡";
-    heartButton.setAttribute(
-      "aria-label",
-      likedByCurrentUser ? "찜 취소" : "찜하기",
-    );
-    heartButton.title = likedByCurrentUser ? "찜 취소" : "찜하기";
-    likeSummary.textContent =
-      product.likes.length === 0
-        ? "아직 찜한 사람이 없습니다"
-        : `${product.likes.length}명 · ${product.likes.join(", ")}`;
-
-    heartButton.addEventListener("click", () => toggleLike(product.id));
+    seller.textContent = product.seller;
+    likeCount.textContent = product.likes.length;
     productGrid.append(card);
   });
 }
