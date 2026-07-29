@@ -5,7 +5,6 @@ import { requireAuth, logout } from "./auth.js";
 import { setupSupabase, getClient } from "./supabase-client.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
-const CUSTOM_CATEGORIES_STORAGE_KEY = "fleamarket-custom-categories";
 
 const sessionPanel = document.querySelector("#sessionPanel");
 const uploadForm = document.querySelector("#uploadForm");
@@ -285,12 +284,15 @@ async function loadCustomCategoryOptions() {
 
   const { data, error } = await client.from("categories").select("name");
 
+  console.log("categories:", data);
+
   if (error) {
     console.error("카테고리를 불러오지 못했습니다.", error);
     return;
   }
 
   (data || []).forEach((category) => {
+    console.log("append:", category.name);
     appendCustomCategoryOption(category.name || "");
   });
 }
@@ -362,7 +364,7 @@ const category =
     console.log("category:", category);
 
 if (categorySelect?.value === "기타") {
-  saveCustomCategory(category || "");
+  await saveCustomCategory(category || "");
 }
   const { error } = await getClient().from("products").insert({
     name,
@@ -380,6 +382,7 @@ if (categorySelect?.value === "기타") {
   }
 
   uploadForm.reset();
+  await loadCustomCategoryOptions();
   await loadProductsFromSupabase();
   setView("market");
 });
@@ -412,7 +415,6 @@ tabButtons.forEach((button) => {
   });
 });
 
-loadCustomCategoryOptions();
 updateCategoryCustomInputVisibility();
 
 document
@@ -422,6 +424,8 @@ document
 async function init() {
   // Supabase 클라이언트를 먼저 준비해야 세션 확인(requireAuth)이 가능하다
   await setupSupabase();
+
+  await loadCustomCategoryOptions();
 
   // 로그인하지 않은 사용자는 여기서 login.html로 리다이렉트되고 이후 로직은 건너뛴다.
   // requireAuth가 세션을 확인하며 state.currentUser를 채운 뒤 화면을 그린다.
