@@ -24,8 +24,12 @@ const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
 const adminHelp = document.querySelector("#adminHelp");
 const productDetailModal = document.querySelector("#productDetailModal");
+const productDetailHeroImage = document.querySelector(".detail-hero-image");
+const productDetailCategory = document.querySelector(".detail-category");
 const productDetailTitle = document.querySelector("#productDetailTitle");
 const productDetailPrice = document.querySelector(".detail-price");
+const productDetailDescription = document.querySelector(".detail-description");
+const productDetailMetaValues = document.querySelectorAll(".detail-meta dd");
 const productDetailCloseButton = document.querySelector(".dialog-close-button");
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
@@ -38,6 +42,7 @@ function normalizeProduct(row) {
     id: row.id,
     name: row.name,
     photo: row.image || row.photo || "",
+    category: row.category || "카테고리 없음",
     description: row.description || "",
     price: Number(row.price || 0),
     seller: row.seller || "알 수 없음",
@@ -179,11 +184,54 @@ function renderProducts() {
   });
 }
 
+function formatProductDate(value) {
+  if (!value) return "등록일 없음";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "등록일 없음";
+
+  return formatDate(date);
+}
+
+function renderProductDetailHeroImage(photo, title) {
+  productDetailHeroImage.replaceChildren();
+
+  if (!photo) {
+    productDetailHeroImage.setAttribute("aria-label", "대표 이미지 없음");
+    return;
+  }
+
+  const image = document.createElement("img");
+  image.src = photo;
+  image.alt = `${title} 대표 이미지`;
+  image.style.display = "block";
+  image.style.width = "100%";
+  image.style.height = "100%";
+  image.style.objectFit = "cover";
+  productDetailHeroImage.append(image);
+  productDetailHeroImage.setAttribute("aria-label", `${title} 대표 이미지`);
+}
+
 function openProductDetail(product) {
   if (!productDetailModal) return;
 
-  productDetailTitle.textContent = product.name;
-  productDetailPrice.textContent = formatPrice(product.price);
+  const title = product.name || "상품명 없음";
+  const numericPrice = Number(product.price);
+  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const photo = product.photo || "";
+  const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
+
+  renderProductDetailHeroImage(photo, title);
+  productDetailCategory.textContent = product.category || "카테고리 없음";
+  productDetailTitle.textContent = title;
+  productDetailPrice.textContent = formatPrice(price);
+  productDetailDescription.textContent =
+    product.description || "상품 설명이 없습니다.";
+  productDetailMetaValues[0].textContent = product.seller || "알 수 없음";
+  productDetailMetaValues[1].textContent = formatProductDate(
+    product.createdAt,
+  );
+  productDetailMetaValues[2].textContent = likeCount;
   productDetailModal.showModal();
 }
 
