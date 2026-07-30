@@ -114,6 +114,46 @@
       </article>
     </template>
 
+    <dialog class="product-detail-modal" id="productDetailModal" aria-labelledby="productDetailTitle">
+      <article class="product-detail-panel">
+        <button class="dialog-close-button" type="button" aria-label="상품 상세 닫기" title="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+
+        <section class="detail-media" aria-label="상품 이미지">
+          <div class="detail-hero-image" aria-label="대표 이미지"></div>
+          <div class="detail-thumbnail-strip" aria-label="상품 썸네일 목록">
+            <div class="detail-thumbnail" aria-label="썸네일 1"></div>
+            <div class="detail-thumbnail" aria-label="썸네일 2"></div>
+            <div class="detail-thumbnail" aria-label="썸네일 3"></div>
+          </div>
+        </section>
+
+        <section class="detail-content" aria-label="상품 정보">
+          <p class="detail-category">카테고리</p>
+          <h2 id="productDetailTitle">상품명</h2>
+          <strong class="detail-price">0원</strong>
+          <p class="detail-description">상품 설명</p>
+          <dl class="detail-meta">
+            <div>
+              <dt>판매자</dt>
+              <dd>판매자</dd>
+            </div>
+            <div>
+              <dt>등록일</dt>
+              <dd>등록일</dd>
+            </div>
+            <div>
+              <dt>찜</dt>
+              <dd>0</dd>
+            </div>
+          </dl>
+        </section>
+
+        <footer class="detail-actions" aria-label="상품 작업 영역"></footer>
+      </article>
+    </dialog>
+
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
