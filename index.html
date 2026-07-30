@@ -88,7 +88,8 @@
             <label for="priceInput">금액</label>
             <input id="priceInput" type="number" inputmode="numeric" min="0" step="100" placeholder="예: 15000" required />
 
-            <button class="primary-button wide" type="submit">등록하기</button>
+            <button class="primary-button wide" id="productSubmitButton" type="submit">등록하기</button>
+            <button class="secondary-button wide hidden" id="cancelProductEditButton" type="button">수정 취소</button>
           </form>
         </section>
       </main>
@@ -150,7 +151,14 @@
           </dl>
         </section>
 
-        <footer class="detail-actions" aria-label="상품 작업 영역"></footer>
+        <footer class="detail-actions" aria-label="상품 작업 영역">
+          <button class="secondary-button detail-edit-button hidden" type="button">수정</button>
+          <button class="secondary-button detail-delete-button hidden" type="button">삭제</button>
+          <button class="detail-like-button" type="button" aria-label="찜 개수" title="찜">
+            <span class="detail-like-icon" aria-hidden="true">♥</span>
+            <span class="detail-like-count">0</span>
+          </button>
+        </footer>
       </article>
     </dialog>
 

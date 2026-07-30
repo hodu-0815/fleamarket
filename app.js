@@ -33,7 +33,16 @@ const productDetailMetaValues = document.querySelectorAll(".detail-meta dd");
 const productDetailCloseButton = document.querySelector(".dialog-close-button");
 const productDetailLikeButton = document.querySelector(".detail-like-button");
 const productDetailLikeCount = document.querySelector(".detail-like-count");
+const productDetailEditButton = document.querySelector(".detail-edit-button");
+const productDetailDeleteButton = document.querySelector(
+  ".detail-delete-button",
+);
+const productSubmitButton = document.querySelector("#productSubmitButton");
+const cancelProductEditButton = document.querySelector(
+  "#cancelProductEditButton",
+);
 let currentProductId = null;
+let editingProductId = null;
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
@@ -227,6 +236,10 @@ function openProductDetail(product) {
   const likedByCurrentUser = Boolean(
     state.currentUser && product.likes.includes(state.currentUser.nickname),
   );
+  const editableByCurrentUser = Boolean(
+    state.currentUser && product.seller === state.currentUser.nickname,
+  );
+  const deletableByCurrentUser = Boolean(editableByCurrentUser || isAdmin());
 
   renderProductDetailHeroImage(photo, title);
   productDetailCategory.textContent = product.category || "카테고리 없음";
@@ -244,6 +257,11 @@ function openProductDetail(product) {
   productDetailLikeButton?.setAttribute(
     "aria-pressed",
     String(likedByCurrentUser),
+  );
+  productDetailEditButton?.classList.toggle("hidden", !editableByCurrentUser);
+  productDetailDeleteButton?.classList.toggle(
+    "hidden",
+    !deletableByCurrentUser,
   );
   productDetailModal.showModal();
 }
@@ -289,6 +307,100 @@ function setView(viewName) {
   });
 
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function getProductFormFields() {
+  return {
+    name: document.querySelector("#productNameInput"),
+    photo: document.querySelector("#photoInput"),
+    description: document.querySelector("#descriptionInput"),
+    category: document.querySelector("#categorySelect"),
+    categoryCustom: document.querySelector("#categoryCustomInput"),
+    price: document.querySelector("#priceInput"),
+  };
+}
+
+function setProductFormMode(product = null) {
+  const fields = getProductFormFields();
+  const isEditing = Boolean(product);
+
+  editingProductId = product?.id || null;
+  productSubmitButton.textContent = isEditing ? "수정하기" : "등록하기";
+  cancelProductEditButton.classList.toggle("hidden", !isEditing);
+  fields.photo.required = !isEditing;
+
+  if (!isEditing) {
+    uploadForm.reset();
+    updateCategoryCustomInputVisibility();
+    return;
+  }
+
+  fields.name.value = product.name || "";
+  fields.description.value = product.description || "";
+  fields.price.value = Number.isFinite(Number(product.price))
+    ? String(Number(product.price))
+    : "";
+
+  const category = product.category || "";
+  if (category) appendCustomCategoryOption(category);
+  fields.category.value = category || "기타";
+  fields.categoryCustom.value = "";
+  updateCategoryCustomInputVisibility();
+  fields.photo.value = "";
+}
+
+function startProductEdit() {
+  if (currentProductId === null) return;
+
+  const product = state.products.find((item) => item.id === currentProductId);
+  if (!product || product.seller !== state.currentUser?.nickname) return;
+
+  setProductFormMode(product);
+  closeProductDetailModal();
+  setView("sell");
+  getProductFormFields().name.focus();
+}
+
+async function deleteCurrentProduct() {
+  if (currentProductId === null) return;
+
+  const product = state.products.find((item) => item.id === currentProductId);
+  const canDelete = Boolean(
+    product &&
+      state.currentUser &&
+      (product.seller === state.currentUser.nickname || isAdmin()),
+  );
+
+  if (!canDelete) return;
+  if (!window.confirm("이 상품을 삭제할까요?")) return;
+
+  try {
+    console.log("[delete]", {
+      productId: product.id,
+      type: typeof product.id,
+      product,
+    });
+    
+    const { data, error } = await getClient()
+      .from("products")
+      .delete()
+      .eq("id", product.id)
+      .select("id");
+
+    if (!error && data?.length) {
+      state.products = state.products.filter((item) => item.id !== product.id);
+      closeProductDetailModal();
+      renderProducts();
+      await loadProductsFromSupabase();
+      return;
+    }
+
+    console.warn("상품을 삭제하지 못했습니다.", error || "삭제된 행이 없습니다.");
+  } catch (error) {
+    console.warn("상품 삭제 중 오류가 발생했습니다.", error);
+  }
+
+  showToast("상품을 삭제하지 못했습니다.", { type: "error" });
 }
 
 async function toggleLike(productId) {
@@ -418,19 +530,20 @@ uploadForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const name = document.querySelector("#productNameInput").value.trim();
-  const photoFile = document.querySelector("#photoInput").files[0];
-  const description = document.querySelector("#descriptionInput").value.trim();
-  const price = document
-    .querySelector("#priceInput")
-    .value.replaceAll(",", "")
-    .trim();
+  const fields = getProductFormFields();
+  const productBeingEdited = editingProductId
+    ? state.products.find((item) => item.id === editingProductId)
+    : null;
+  const name = fields.name.value.trim();
+  const photoFile = fields.photo.files[0];
+  const description = fields.description.value.trim();
+  const price = fields.price.value.replaceAll(",", "").trim();
 
   const numericPrice = Number(price);
 
   if (
     !name ||
-    !photoFile ||
+    (!editingProductId && !photoFile) ||
     !price ||
     !Number.isFinite(numericPrice) ||
     numericPrice < 0
@@ -444,42 +557,66 @@ uploadForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  let imageUrl = "";
-  try {
-    imageUrl = await uploadProductImage(photoFile);
-  } catch (error) {
-    console.error("상품 이미지를 업로드하지 못했습니다.", error);
-    showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
+  if (editingProductId && !productBeingEdited) {
+    showToast("수정할 상품을 찾지 못했습니다.", { type: "error" });
     return;
   }
-const categorySelect = document.querySelector("#categorySelect");
-const categoryCustomInput = document.querySelector("#categoryCustomInput");
 
-const category =
-  categorySelect?.value === "기타"
-    ? categoryCustomInput?.value.trim()
-    : categorySelect?.value;
-    console.log("category:", category);
+  let imageUrl = "";
+  if (photoFile) {
+    try {
+      imageUrl = await uploadProductImage(photoFile);
+    } catch (error) {
+      console.error("상품 이미지를 업로드하지 못했습니다.", error);
+      showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
+      return;
+    }
+  }
+  const categorySelect = fields.category;
+  const categoryCustomInput = fields.categoryCustom;
 
-if (categorySelect?.value === "기타") {
-  await saveCustomCategory(category || "");
-}
-  const { error } = await getClient().from("products").insert({
+  const category =
+    categorySelect?.value === "기타"
+      ? categoryCustomInput?.value.trim()
+      : categorySelect?.value;
+  console.log("category:", category);
+
+  if (categorySelect?.value === "기타") {
+    await saveCustomCategory(category || "");
+  }
+  const productPayload = {
     name,
-    image: imageUrl,
     description,
     price: numericPrice,
-    seller: state.currentUser.nickname,
     category,
-  });
+  };
+
+  if (imageUrl) {
+    productPayload.image = imageUrl;
+  }
+
+  let error;
+  if (productBeingEdited) {
+    ({ error } = await getClient()
+      .from("products")
+      .update(productPayload)
+      .eq("id", productBeingEdited.id)
+      .eq("seller", state.currentUser.nickname));
+  } else {
+    ({ error } = await getClient().from("products").insert({
+      ...productPayload,
+      image: imageUrl,
+      seller: state.currentUser.nickname,
+    }));
+  }
 
   if (error) {
-    console.error("상품을 등록하지 못했습니다.", error);
-    showToast("상품을 등록하지 못했습니다.", { type: "error" });
+    console.error("상품을 저장하지 못했습니다.", error);
+    showToast("상품을 저장하지 못했습니다.", { type: "error" });
     return;
   }
 
-  uploadForm.reset();
+  setProductFormMode();
   await loadCustomCategoryOptions();
   await loadProductsFromSupabase();
   setView("market");
@@ -505,6 +642,14 @@ productDetailLikeButton?.addEventListener("click", () => {
 
   toggleLike(currentProductId);
   refreshOpenProductDetailLike();
+});
+
+productDetailEditButton?.addEventListener("click", startProductEdit);
+
+productDetailDeleteButton?.addEventListener("click", deleteCurrentProduct);
+
+cancelProductEditButton.addEventListener("click", () => {
+  setProductFormMode();
 });
 
 productDetailModal.addEventListener("click", (event) => {

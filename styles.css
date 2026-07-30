@@ -610,10 +610,40 @@ textarea {
 }
 
 .detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   min-height: 64px;
   border-top: 1px solid var(--line);
   padding: 12px 16px 16px;
   background: rgba(255, 255, 255, 0.76);
+}
+
+.detail-like-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 78px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--heart);
+  background: #ffe5dc;
+  font-weight: 800;
+}
+
+.detail-like-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.detail-like-count {
+  min-width: 1ch;
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1;
 }
 
 .like-summary {
