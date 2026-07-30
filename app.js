@@ -31,6 +31,9 @@ const productDetailPrice = document.querySelector(".detail-price");
 const productDetailDescription = document.querySelector(".detail-description");
 const productDetailMetaValues = document.querySelectorAll(".detail-meta dd");
 const productDetailCloseButton = document.querySelector(".dialog-close-button");
+const productDetailLikeButton = document.querySelector(".detail-like-button");
+const productDetailLikeCount = document.querySelector(".detail-like-count");
+let currentProductId = null;
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
@@ -215,11 +218,15 @@ function renderProductDetailHeroImage(photo, title) {
 function openProductDetail(product) {
   if (!productDetailModal) return;
 
+  currentProductId = product.id;
   const title = product.name || "상품명 없음";
   const numericPrice = Number(product.price);
   const price = Number.isFinite(numericPrice) ? numericPrice : 0;
   const photo = product.photo || "";
   const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
+  const likedByCurrentUser = Boolean(
+    state.currentUser && product.likes.includes(state.currentUser.nickname),
+  );
 
   renderProductDetailHeroImage(photo, title);
   productDetailCategory.textContent = product.category || "카테고리 없음";
@@ -232,11 +239,38 @@ function openProductDetail(product) {
     product.createdAt,
   );
   productDetailMetaValues[2].textContent = likeCount;
+  productDetailLikeCount.textContent = likeCount;
+  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
+  productDetailLikeButton?.setAttribute(
+    "aria-pressed",
+    String(likedByCurrentUser),
+  );
   productDetailModal.showModal();
 }
 
 function closeProductDetailModal() {
+  currentProductId = null;
   productDetailModal.close();
+}
+
+function refreshOpenProductDetailLike() {
+  if (currentProductId === null || !productDetailModal.open) return;
+
+  const product = state.products.find((item) => item.id === currentProductId);
+  if (!product) return;
+
+  const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
+  const likedByCurrentUser = Boolean(
+    state.currentUser && product.likes.includes(state.currentUser.nickname),
+  );
+
+  productDetailMetaValues[2].textContent = likeCount;
+  productDetailLikeCount.textContent = likeCount;
+  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
+  productDetailLikeButton?.setAttribute(
+    "aria-pressed",
+    String(likedByCurrentUser),
+  );
 }
 
 function render() {
@@ -276,6 +310,7 @@ async function toggleLike(productId) {
   const result = await updateProductLikes(product.id, nextLikes);
   if (!result.ok) {
     showToast("찜 정보를 저장하지 못했습니다.", { type: "error" });
+    refreshOpenProductDetailLike();
     return;
   }
 
@@ -283,6 +318,7 @@ async function toggleLike(productId) {
   product.likes = result.likes;
   saveState();
   renderProducts();
+  refreshOpenProductDetailLike();
 }
 
 async function saveCustomCategory(category) {
@@ -463,6 +499,13 @@ cancelNoticeButton.addEventListener("click", () => {
 });
 
 productDetailCloseButton.addEventListener("click", closeProductDetailModal);
+
+productDetailLikeButton?.addEventListener("click", () => {
+  if (currentProductId === null) return;
+
+  toggleLike(currentProductId);
+  refreshOpenProductDetailLike();
+});
 
 productDetailModal.addEventListener("click", (event) => {
   if (event.target === productDetailModal) {
