@@ -23,6 +23,10 @@ const marketCount = document.querySelector("#marketCount");
 const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
 const adminHelp = document.querySelector("#adminHelp");
+const productDetailModal = document.querySelector("#productDetailModal");
+const productDetailTitle = document.querySelector("#productDetailTitle");
+const productDetailPrice = document.querySelector(".detail-price");
+const productDetailCloseButton = document.querySelector(".dialog-close-button");
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
@@ -168,8 +172,23 @@ function renderProducts() {
     price.textContent = formatPrice(product.price);
     seller.textContent = product.seller;
     likeCount.textContent = product.likes.length;
+    card.addEventListener("click", () => {
+      openProductDetail(product);
+    });
     productGrid.append(card);
   });
+}
+
+function openProductDetail(product) {
+  if (!productDetailModal) return;
+
+  productDetailTitle.textContent = product.name;
+  productDetailPrice.textContent = formatPrice(product.price);
+  productDetailModal.showModal();
+}
+
+function closeProductDetailModal() {
+  productDetailModal.close();
 }
 
 function render() {
@@ -393,6 +412,14 @@ editNoticeButton.addEventListener("click", () => {
 cancelNoticeButton.addEventListener("click", () => {
   noticeEditor.classList.add("hidden");
   noticeCopy.classList.remove("hidden");
+});
+
+productDetailCloseButton.addEventListener("click", closeProductDetailModal);
+
+productDetailModal.addEventListener("click", (event) => {
+  if (event.target === productDetailModal) {
+    closeProductDetailModal();
+  }
 });
 
 noticeEditor.addEventListener("submit", (event) => {
