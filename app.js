@@ -1,5 +1,5 @@
 import { state, saveState, defaultNotice } from "./store.js";
-import { escapeHtml, formatPrice, formatDate } from "./utils.js";
+import { escapeHtml, formatPrice } from "./utils.js";
 import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
 import {
@@ -9,51 +9,116 @@ import {
 } from "./supabase-client.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
+const DEFAULT_PRODUCT_IMAGE =
+  "https://kqnxnnknexxkstwojwkb.supabase.co/storage/v1/object/public/product-images/default_image.png";
+const MAX_PRODUCT_IMAGES = 3;
 
 const sessionPanel = document.querySelector("#sessionPanel");
 const uploadForm = document.querySelector("#uploadForm");
+const photoUploadButton = document.querySelector("#photoUploadButton");
+const photoUploadCount = document.querySelector("#photoUploadCount");
+const productImagePreview = document.querySelector("#productImagePreview");
 const noticeCopy = document.querySelector("#noticeCopy");
 const noticeEditor = document.querySelector("#noticeEditor");
 const noticeInput = document.querySelector("#noticeInput");
 const editNoticeButton = document.querySelector("#editNoticeButton");
 const cancelNoticeButton = document.querySelector("#cancelNoticeButton");
+const productNameInput = document.querySelector("#productNameInput");
+const productImagesInput = document.querySelector("#productImagesInput");
+const descriptionInput = document.querySelector("#descriptionInput");
+const categorySelect = document.querySelector("#categorySelect");
+const categoryCustomInput = document.querySelector("#categoryCustomInput");
+const priceInput = document.querySelector("#priceInput");
 const productGrid = document.querySelector("#productGrid");
 const productTemplate = document.querySelector("#productTemplate");
 const marketCount = document.querySelector("#marketCount");
+const marketCategoryFilter = document.querySelector("#marketCategoryFilter");
 const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
 const adminHelp = document.querySelector("#adminHelp");
 const productDetailModal = document.querySelector("#productDetailModal");
 const productDetailHeroImage = document.querySelector(".detail-hero-image");
+const productDetailSellerDate = document.querySelector(".detail-seller-date");
 const productDetailCategory = document.querySelector(".detail-category");
 const productDetailTitle = document.querySelector("#productDetailTitle");
 const productDetailPrice = document.querySelector(".detail-price");
 const productDetailDescription = document.querySelector(".detail-description");
-const productDetailMetaValues = document.querySelectorAll(".detail-meta dd");
 const productDetailCloseButton = document.querySelector(".dialog-close-button");
 const productDetailLikeButton = document.querySelector(".detail-like-button");
 const productDetailLikeCount = document.querySelector(".detail-like-count");
+const productDetailPrevButton = document.querySelector(".detail-image-prev");
+const productDetailNextButton = document.querySelector(".detail-image-next");
+const productDetailImageStatus = document.querySelector(".detail-image-status");
+const productDetailImageDots = document.querySelector(".detail-image-dots");
+const productDetailMoreButton = document.querySelector(".detail-more-button");
+const productDetailMorePopover = document.querySelector(".detail-more-popover");
 const productDetailEditButton = document.querySelector(".detail-edit-button");
 const productDetailDeleteButton = document.querySelector(
   ".detail-delete-button",
 );
+const imageViewerModal = document.querySelector("#imageViewerModal");
+const imageViewerImage = document.querySelector(".image-viewer-image");
+const imageViewerCloseButton = document.querySelector(".image-viewer-close");
+const imageViewerPrevButton = document.querySelector(".image-viewer-prev");
+const imageViewerNextButton = document.querySelector(".image-viewer-next");
+const imageViewerStatus = document.querySelector(".image-viewer-status");
 const productSubmitButton = document.querySelector("#productSubmitButton");
 const cancelProductEditButton = document.querySelector(
   "#cancelProductEditButton",
 );
+const productFormFields = {
+  name: productNameInput,
+  imageInput: productImagesInput,
+  description: descriptionInput,
+  category: categorySelect,
+  categoryCustom: categoryCustomInput,
+  price: priceInput,
+};
 let currentProductId = null;
 let editingProductId = null;
+let retainedImageUrls = [];
+let pendingImageFiles = [];
+let productImagePreviewObjectUrls = [];
+let currentDetailImages = [DEFAULT_PRODUCT_IMAGE];
+let currentDetailImageIndex = 0;
+let detailImageDragStartX = null;
+let detailImageDidSwipe = false;
+let currentViewerImageIndex = 0;
+let selectedMarketCategory = "전체";
+const loadedCategories = new Set();
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
   return Boolean(user?.isAdmin);
 }
 
+function normalizeImageUrls(...sources) {
+  const urls = sources.flatMap((source) => {
+    if (Array.isArray(source)) return source;
+    if (typeof source === "string") return [source];
+    return [];
+  });
+
+  return urls
+    .map((url) => String(url || "").trim())
+    .filter(Boolean);
+}
+
+function getProductImages(product = {}) {
+  const images = normalizeImageUrls(product.images);
+  const legacyImages = normalizeImageUrls(product.image, product.photo);
+  const productImages = images.length ? images : legacyImages;
+
+  return productImages.length ? productImages : [DEFAULT_PRODUCT_IMAGE];
+}
+
 function normalizeProduct(row) {
+  const images = getProductImages(row);
+
   return {
     id: row.id,
     name: row.name,
-    photo: row.image || row.photo || "",
+    images,
     category: row.category || "카테고리 없음",
     description: row.description || "",
     price: Number(row.price || 0),
@@ -157,42 +222,66 @@ function renderNotice() {
   noticeCopy.classList.remove("hidden");
 }
 
-function renderProducts() {
-  productGrid.innerHTML = "";
-  const sortedProducts = [...state.products].sort(
+function getVisibleProducts() {
+  if (selectedMarketCategory === "전체") return [...state.products];
+
+  return state.products.filter(
+    (product) => product.category === selectedMarketCategory,
+  );
+}
+
+function sortProductsByNewest(products) {
+  return [...products].sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   );
+}
+
+function renderEmptyProducts() {
+  const empty = document.createElement("p");
+  empty.className = "empty-state";
+  empty.textContent =
+    selectedMarketCategory === "전체"
+      ? "아직 등록된 판매 글이 없습니다."
+      : "선택한 카테고리에 등록된 판매 글이 없습니다.";
+  productGrid.append(empty);
+}
+
+function createProductCard(product) {
+  const node = productTemplate.content.cloneNode(true);
+  const card = node.querySelector(".product-card");
+  const image = node.querySelector(".product-image");
+  const title = node.querySelector("h3");
+  const price = node.querySelector(".price");
+  const seller = node.querySelector(".seller");
+  const likeCount = node.querySelector(".like-count");
+  const productImages = getProductImages(product);
+  const likes = Array.isArray(product.likes) ? product.likes : [];
+
+  image.src = productImages[0];
+  image.alt = `${product.name} 사진`;
+  title.textContent = product.name;
+  price.textContent = formatPrice(product.price);
+  seller.textContent = product.seller;
+  likeCount.textContent = likes.length;
+  card.addEventListener("click", () => openProductDetail(product));
+
+  return node;
+}
+
+function renderProducts() {
+  productGrid.innerHTML = "";
+  syncMarketCategoryFilterOptions();
+
+  const sortedProducts = sortProductsByNewest(getVisibleProducts());
   marketCount.textContent = `${sortedProducts.length}개 등록`;
 
   if (sortedProducts.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "아직 등록된 판매 글이 없습니다.";
-    productGrid.append(empty);
+    renderEmptyProducts();
     return;
   }
 
   sortedProducts.forEach((product) => {
-    const node = productTemplate.content.cloneNode(true);
-    const card = node.querySelector(".product-card");
-    const image = node.querySelector(".product-image");
-    const title = node.querySelector("h3");
-    const price = node.querySelector(".price");
-    const seller = node.querySelector(".seller");
-    const likeCount = node.querySelector(".like-count");
-    const likedByCurrentUser =
-      state.currentUser && product.likes.includes(state.currentUser.nickname);
-
-    image.src = product.photo;
-    image.alt = `${product.name} 사진`;
-    title.textContent = product.name;
-    price.textContent = formatPrice(product.price);
-    seller.textContent = product.seller;
-    likeCount.textContent = product.likes.length;
-    card.addEventListener("click", () => {
-      openProductDetail(product);
-    });
-    productGrid.append(card);
+    productGrid.append(createProductCard(product));
   });
 }
 
@@ -202,26 +291,157 @@ function formatProductDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "등록일 없음";
 
-  return formatDate(date);
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
 }
 
-function renderProductDetailHeroImage(photo, title) {
+function renderProductDetailHeroImage(imageUrl, title) {
   productDetailHeroImage.replaceChildren();
 
-  if (!photo) {
+  if (!imageUrl) {
     productDetailHeroImage.setAttribute("aria-label", "대표 이미지 없음");
     return;
   }
 
   const image = document.createElement("img");
-  image.src = photo;
+  image.src = imageUrl;
   image.alt = `${title} 대표 이미지`;
   image.style.display = "block";
   image.style.width = "100%";
   image.style.height = "100%";
-  image.style.objectFit = "cover";
+  image.style.objectFit = "contain";
   productDetailHeroImage.append(image);
   productDetailHeroImage.setAttribute("aria-label", `${title} 대표 이미지`);
+}
+
+function updateProductDetailImage(index) {
+  const lastIndex = currentDetailImages.length - 1;
+  currentDetailImageIndex = Math.min(Math.max(index, 0), lastIndex);
+  const imageUrl = currentDetailImages[currentDetailImageIndex];
+  const title = productDetailTitle.textContent || "상품";
+
+  renderProductDetailHeroImage(imageUrl, title);
+  const hasMultipleImages = currentDetailImages.length > 1;
+
+  productDetailPrevButton?.classList.toggle("hidden", !hasMultipleImages);
+  productDetailNextButton?.classList.toggle("hidden", !hasMultipleImages);
+  productDetailImageStatus?.classList.toggle("hidden", !hasMultipleImages);
+  productDetailImageDots?.classList.toggle("hidden", !hasMultipleImages);
+
+  if (productDetailImageStatus) {
+    productDetailImageStatus.textContent = `${currentDetailImageIndex + 1}/${currentDetailImages.length}`;
+  }
+
+  if (productDetailImageDots) {
+    productDetailImageDots.replaceChildren();
+    currentDetailImages.forEach((dotImageUrl, dotIndex) => {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "detail-image-dot";
+      dot.classList.toggle("active", dotIndex === currentDetailImageIndex);
+      dot.setAttribute("aria-label", `${dotIndex + 1}번째 이미지 보기`);
+      dot.setAttribute(
+        "aria-current",
+        dotIndex === currentDetailImageIndex ? "true" : "false",
+      );
+      dot.setAttribute(
+        "aria-pressed",
+        String(dotIndex === currentDetailImageIndex),
+      );
+      dot.addEventListener("click", () => updateProductDetailImage(dotIndex));
+
+      const thumbnail = document.createElement("img");
+      thumbnail.src = dotImageUrl;
+      thumbnail.alt = "";
+      thumbnail.setAttribute("aria-hidden", "true");
+      dot.append(thumbnail);
+      productDetailImageDots.append(dot);
+    });
+  }
+}
+
+function moveProductDetailImage(step) {
+  if (currentDetailImages.length <= 1) return;
+
+  const nextIndex =
+    (currentDetailImageIndex + step + currentDetailImages.length) %
+    currentDetailImages.length;
+  updateProductDetailImage(nextIndex);
+}
+
+function updateImageViewer(index) {
+  if (!imageViewerImage || currentDetailImages.length === 0) return;
+
+  const lastIndex = currentDetailImages.length - 1;
+  currentViewerImageIndex = Math.min(Math.max(index, 0), lastIndex);
+  const imageUrl = currentDetailImages[currentViewerImageIndex];
+  const title = productDetailTitle.textContent || "상품";
+  const hasMultipleImages = currentDetailImages.length > 1;
+
+  imageViewerImage.src = imageUrl;
+  imageViewerImage.alt = `${title} 확대 이미지`;
+  imageViewerPrevButton?.classList.toggle("hidden", !hasMultipleImages);
+  imageViewerNextButton?.classList.toggle("hidden", !hasMultipleImages);
+  imageViewerStatus?.classList.toggle("hidden", !hasMultipleImages);
+
+  if (imageViewerStatus) {
+    imageViewerStatus.textContent = `${currentViewerImageIndex + 1}/${currentDetailImages.length}`;
+  }
+}
+
+function moveImageViewer(step) {
+  if (currentDetailImages.length <= 1) return;
+
+  const nextIndex =
+    (currentViewerImageIndex + step + currentDetailImages.length) %
+    currentDetailImages.length;
+  updateImageViewer(nextIndex);
+}
+
+function openImageViewer() {
+  if (!imageViewerModal || currentDetailImages.length === 0) return;
+
+  updateImageViewer(currentDetailImageIndex);
+
+  if (!imageViewerModal.open) {
+    imageViewerModal.showModal();
+  }
+}
+
+function closeImageViewer() {
+  if (!imageViewerModal?.open) return;
+
+  imageViewerModal.close();
+}
+
+function renderProductDetailImages(images) {
+  const productImages = normalizeImageUrls(images);
+  currentDetailImages = productImages.length
+    ? productImages
+    : [DEFAULT_PRODUCT_IMAGE];
+
+  updateProductDetailImage(0);
+}
+
+function updateProductDetailLikeState(likeCount, likedByCurrentUser) {
+  productDetailLikeCount.textContent = likeCount;
+  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
+  productDetailLikeButton?.setAttribute(
+    "aria-pressed",
+    String(likedByCurrentUser),
+  );
+  productDetailLikeButton?.setAttribute(
+    "aria-label",
+    likedByCurrentUser
+      ? `찜 취소, 현재 ${likeCount}개`
+      : `찜하기, 현재 ${likeCount}개`,
+  );
+  productDetailLikeButton?.setAttribute(
+    "title",
+    likedByCurrentUser ? "찜 취소" : "찜하기",
+  );
 }
 
 function openProductDetail(product) {
@@ -231,50 +451,79 @@ function openProductDetail(product) {
   const title = product.name || "상품명 없음";
   const numericPrice = Number(product.price);
   const price = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const photo = product.photo || "";
-  const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
+  const images = getProductImages(product);
+  const likes = Array.isArray(product.likes) ? product.likes : [];
+  const likeCount = likes.length;
   const likedByCurrentUser = Boolean(
-    state.currentUser && product.likes.includes(state.currentUser.nickname),
+    state.currentUser && likes.includes(state.currentUser.nickname),
   );
-  const editableByCurrentUser = Boolean(
-    state.currentUser && product.seller === state.currentUser.nickname,
-  );
-  const deletableByCurrentUser = Boolean(editableByCurrentUser || isAdmin());
+  const editableByCurrentUser = canEditProduct(product);
+  const deletableByCurrentUser = canDeleteProduct(product);
 
-  renderProductDetailHeroImage(photo, title);
   productDetailCategory.textContent = product.category || "카테고리 없음";
   productDetailTitle.textContent = title;
   productDetailPrice.textContent = formatPrice(price);
+  renderProductDetailImages(images);
   productDetailDescription.textContent =
     product.description || "상품 설명이 없습니다.";
-  productDetailMetaValues[0].textContent = product.seller || "알 수 없음";
-  productDetailMetaValues[1].textContent = formatProductDate(
-    product.createdAt,
-  );
-  productDetailMetaValues[2].textContent = likeCount;
-  productDetailLikeCount.textContent = likeCount;
-  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
-  productDetailLikeButton?.setAttribute(
-    "aria-pressed",
-    String(likedByCurrentUser),
-  );
+  productDetailSellerDate.textContent = `${product.seller || "알 수 없음"} · ${formatProductDate(product.createdAt)}`;
+  updateProductDetailLikeState(likeCount, likedByCurrentUser);
   productDetailEditButton?.classList.toggle("hidden", !editableByCurrentUser);
   productDetailDeleteButton?.classList.toggle(
     "hidden",
     !deletableByCurrentUser,
   );
+  productDetailMoreButton?.classList.toggle(
+    "hidden",
+    !(editableByCurrentUser || deletableByCurrentUser),
+  );
+  closeProductDetailMoreMenu();
   productDetailModal.showModal();
 }
 
 function closeProductDetailModal() {
   currentProductId = null;
+  closeImageViewer();
+  closeProductDetailMoreMenu();
   productDetailModal.close();
+}
+
+function closeProductDetailMoreMenu() {
+  productDetailMorePopover?.classList.add("hidden");
+  productDetailMoreButton?.setAttribute("aria-expanded", "false");
+}
+
+function toggleProductDetailMoreMenu() {
+  if (!productDetailMorePopover || !productDetailMoreButton) return;
+
+  const isOpening = productDetailMorePopover.classList.contains("hidden");
+  productDetailMorePopover.classList.toggle("hidden", !isOpening);
+  productDetailMoreButton.setAttribute("aria-expanded", String(isOpening));
+}
+
+function handleDetailImageDragStart(event) {
+  if (currentDetailImages.length <= 1) return;
+
+  detailImageDidSwipe = false;
+  detailImageDragStartX = event.clientX;
+}
+
+function handleDetailImageDragEnd(event) {
+  if (detailImageDragStartX === null) return;
+
+  const dragDistance = event.clientX - detailImageDragStartX;
+  detailImageDragStartX = null;
+
+  if (Math.abs(dragDistance) < 48) return;
+
+  detailImageDidSwipe = true;
+  moveProductDetailImage(dragDistance > 0 ? -1 : 1);
 }
 
 function refreshOpenProductDetailLike() {
   if (currentProductId === null || !productDetailModal.open) return;
 
-  const product = state.products.find((item) => item.id === currentProductId);
+  const product = findProductById(currentProductId);
   if (!product) return;
 
   const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
@@ -282,13 +531,7 @@ function refreshOpenProductDetailLike() {
     state.currentUser && product.likes.includes(state.currentUser.nickname),
   );
 
-  productDetailMetaValues[2].textContent = likeCount;
-  productDetailLikeCount.textContent = likeCount;
-  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
-  productDetailLikeButton?.setAttribute(
-    "aria-pressed",
-    String(likedByCurrentUser),
-  );
+  updateProductDetailLikeState(likeCount, likedByCurrentUser);
 }
 
 function render() {
@@ -309,98 +552,411 @@ function setView(viewName) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function getProductFormFields() {
-  return {
-    name: document.querySelector("#productNameInput"),
-    photo: document.querySelector("#photoInput"),
-    description: document.querySelector("#descriptionInput"),
-    category: document.querySelector("#categorySelect"),
-    categoryCustom: document.querySelector("#categoryCustomInput"),
-    price: document.querySelector("#priceInput"),
-  };
+function getMarketCategories() {
+  const categories = new Set(loadedCategories);
+
+  state.products.forEach((product) => {
+    if (product.category && product.category !== "카테고리 없음") {
+      categories.add(product.category);
+    }
+  });
+
+  return [...categories].sort((a, b) => a.localeCompare(b, "ko"));
+}
+
+function syncMarketCategoryFilterOptions() {
+  if (!marketCategoryFilter) return;
+
+  const categories = getMarketCategories();
+  const selectedCategory = categories.includes(selectedMarketCategory)
+    ? selectedMarketCategory
+    : "전체";
+
+  marketCategoryFilter.replaceChildren();
+  const allOption = document.createElement("option");
+  allOption.value = "전체";
+  allOption.textContent = "전체";
+  marketCategoryFilter.append(allOption);
+
+  categories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    marketCategoryFilter.append(option);
+  });
+
+  selectedMarketCategory = selectedCategory;
+  marketCategoryFilter.value = selectedMarketCategory;
+}
+
+function findProductById(productId) {
+  return state.products.find((item) => item.id === productId);
+}
+
+function canEditProduct(product) {
+  return Boolean(
+    product &&
+      state.currentUser &&
+      product.seller === state.currentUser.nickname,
+  );
+}
+
+function canDeleteProduct(product) {
+  return Boolean(
+    product && state.currentUser && (canEditProduct(product) || isAdmin()),
+  );
+}
+
+function releaseProductImagePreviewObjectUrls() {
+  productImagePreviewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  productImagePreviewObjectUrls = [];
+}
+
+function getEditableImageUrls(images = []) {
+  return normalizeImageUrls(images);
+}
+
+function getRetainedImageCountForLimit() {
+  if (
+    retainedImageUrls.length === 1 &&
+    retainedImageUrls[0] === DEFAULT_PRODUCT_IMAGE &&
+    pendingImageFiles.length > 0
+  ) {
+    return 0;
+  }
+
+  return retainedImageUrls.length;
+}
+
+function getProductImageFormCount() {
+  return getRetainedImageCountForLimit() + pendingImageFiles.length;
+}
+
+function updatePhotoUploadCount() {
+  if (!photoUploadCount || !photoUploadButton) return;
+
+  const count = Math.min(getProductImageFormCount(), MAX_PRODUCT_IMAGES);
+  const countText = `${count} / ${MAX_PRODUCT_IMAGES}`;
+  photoUploadCount.textContent = countText;
+  photoUploadButton.setAttribute("aria-label", `사진 추가, 현재 ${countText}`);
+}
+
+function renderProductImagePreview() {
+  if (!productImagePreview) return;
+
+  releaseProductImagePreviewObjectUrls();
+  productImagePreview.replaceChildren();
+
+  const previewItems = [
+    ...retainedImageUrls.map((url, index) => ({
+      type: "retained",
+      index,
+      url,
+      label: `기존 이미지 ${index + 1}`,
+    })),
+    ...pendingImageFiles.map((file, index) => {
+      const url = URL.createObjectURL(file);
+      productImagePreviewObjectUrls.push(url);
+      return {
+        type: "pending",
+        index,
+        url,
+        label: `새 이미지 ${index + 1}`,
+      };
+    }),
+  ];
+
+  previewItems.forEach((item) => {
+    const preview = document.createElement("div");
+    preview.className = "product-image-preview-item";
+
+    const image = document.createElement("img");
+    image.src = item.url;
+    image.alt = item.label;
+
+    const removeButton = document.createElement("button");
+    removeButton.className = "remove-image-button";
+    removeButton.type = "button";
+    removeButton.textContent = "×";
+    removeButton.setAttribute("aria-label", `${item.label} 삭제`);
+    removeButton.dataset.imageType = item.type;
+    removeButton.dataset.imageIndex = String(item.index);
+
+    preview.append(image, removeButton);
+    productImagePreview.append(preview);
+  });
+
+  updatePhotoUploadCount();
+}
+
+function resetProductImageForm(images = []) {
+  retainedImageUrls = getEditableImageUrls(images);
+  pendingImageFiles = [];
+  productFormFields.imageInput.value = "";
+  renderProductImagePreview();
+}
+
+function getProductFormImagesForSave(uploadedImageUrls) {
+  const existingImages =
+    retainedImageUrls.length === 1 &&
+    retainedImageUrls[0] === DEFAULT_PRODUCT_IMAGE &&
+    uploadedImageUrls.length > 0
+      ? []
+      : retainedImageUrls;
+  const images = [...existingImages, ...uploadedImageUrls].slice(
+    0,
+    MAX_PRODUCT_IMAGES,
+  );
+
+  return images.length ? images : [DEFAULT_PRODUCT_IMAGE];
 }
 
 function setProductFormMode(product = null) {
-  const fields = getProductFormFields();
   const isEditing = Boolean(product);
 
   editingProductId = product?.id || null;
   productSubmitButton.textContent = isEditing ? "수정하기" : "등록하기";
   cancelProductEditButton.classList.toggle("hidden", !isEditing);
-  fields.photo.required = !isEditing;
+  productFormFields.imageInput.required = false;
 
   if (!isEditing) {
     uploadForm.reset();
+    resetProductImageForm();
     updateCategoryCustomInputVisibility();
     return;
   }
 
-  fields.name.value = product.name || "";
-  fields.description.value = product.description || "";
-  fields.price.value = Number.isFinite(Number(product.price))
+  productFormFields.name.value = product.name || "";
+  productFormFields.description.value = product.description || "";
+  productFormFields.price.value = Number.isFinite(Number(product.price))
     ? String(Number(product.price))
     : "";
 
   const category = product.category || "";
   if (category) appendCustomCategoryOption(category);
-  fields.category.value = category || "기타";
-  fields.categoryCustom.value = "";
+  productFormFields.category.value = category || "기타";
+  productFormFields.categoryCustom.value = "";
   updateCategoryCustomInputVisibility();
-  fields.photo.value = "";
+  resetProductImageForm(getProductImages(product));
+}
+
+function handleProductImageSelection(event) {
+  const selectedFiles = Array.from(event.currentTarget.files || []);
+  if (!selectedFiles.length) return;
+
+  if (
+    retainedImageUrls.length === 1 &&
+    retainedImageUrls[0] === DEFAULT_PRODUCT_IMAGE
+  ) {
+    retainedImageUrls = [];
+  }
+
+  const nextImageCount =
+    getRetainedImageCountForLimit() +
+    pendingImageFiles.length +
+    selectedFiles.length;
+
+  if (nextImageCount > MAX_PRODUCT_IMAGES) {
+    showToast("사진은 최대 3장까지 선택할 수 있습니다.", { type: "error" });
+    event.currentTarget.value = "";
+    renderProductImagePreview();
+    return;
+  }
+
+  pendingImageFiles = [...pendingImageFiles, ...selectedFiles].slice(
+    0,
+    MAX_PRODUCT_IMAGES,
+  );
+  event.currentTarget.value = "";
+  renderProductImagePreview();
+}
+
+function parseProductPrice(value) {
+  const rawPrice = String(value || "").replaceAll(",", "").trim();
+  const numericPriceText = rawPrice.endsWith("원")
+    ? rawPrice.slice(0, -1).trim()
+    : rawPrice;
+
+  if (!/^\d+$/.test(numericPriceText)) return NaN;
+
+  return Number(numericPriceText);
+}
+
+function removeProductImage(type, index) {
+  if (type === "retained") {
+    retainedImageUrls = retainedImageUrls.filter((_, itemIndex) => {
+      return itemIndex !== index;
+    });
+  } else if (type === "pending") {
+    pendingImageFiles = pendingImageFiles.filter((_, itemIndex) => {
+      return itemIndex !== index;
+    });
+  }
+
+  renderProductImagePreview();
 }
 
 function startProductEdit() {
   if (currentProductId === null) return;
 
-  const product = state.products.find((item) => item.id === currentProductId);
-  if (!product || product.seller !== state.currentUser?.nickname) return;
+  const product = findProductById(currentProductId);
+  if (!canEditProduct(product)) return;
 
   setProductFormMode(product);
   closeProductDetailModal();
   setView("sell");
-  getProductFormFields().name.focus();
+  productFormFields.name.focus();
+}
+
+async function createProduct(productPayload) {
+  return getClient().from("products").insert({
+    ...productPayload,
+    seller: state.currentUser.nickname,
+  });
+}
+
+async function updateProduct(product, productPayload) {
+  return getClient()
+    .from("products")
+    .update(productPayload)
+    .eq("id", product.id)
+    .eq("seller", state.currentUser.nickname);
+}
+
+async function deleteProduct(product) {
+  const { data, error } = await getClient()
+    .from("products")
+    .delete()
+    .eq("id", product.id)
+    .select("id");
+
+  if (error || !data?.length) {
+    return { ok: false, error: error || new Error("삭제된 행이 없습니다.") };
+  }
+
+  state.products = state.products.filter((item) => item.id !== product.id);
+  return { ok: true };
 }
 
 async function deleteCurrentProduct() {
   if (currentProductId === null) return;
 
-  const product = state.products.find((item) => item.id === currentProductId);
-  const canDelete = Boolean(
-    product &&
-      state.currentUser &&
-      (product.seller === state.currentUser.nickname || isAdmin()),
-  );
-
-  if (!canDelete) return;
+  const product = findProductById(currentProductId);
+  if (!canDeleteProduct(product)) return;
   if (!window.confirm("이 상품을 삭제할까요?")) return;
 
   try {
-    console.log("[delete]", {
-      productId: product.id,
-      type: typeof product.id,
-      product,
-    });
-    
-    const { data, error } = await getClient()
-      .from("products")
-      .delete()
-      .eq("id", product.id)
-      .select("id");
-
-    if (!error && data?.length) {
-      state.products = state.products.filter((item) => item.id !== product.id);
+    const result = await deleteProduct(product);
+    if (result.ok) {
       closeProductDetailModal();
       renderProducts();
       await loadProductsFromSupabase();
       return;
     }
 
-    console.warn("상품을 삭제하지 못했습니다.", error || "삭제된 행이 없습니다.");
+    console.warn("상품을 삭제하지 못했습니다.", result.error);
   } catch (error) {
     console.warn("상품 삭제 중 오류가 발생했습니다.", error);
   }
 
   showToast("상품을 삭제하지 못했습니다.", { type: "error" });
+}
+
+function getProductFormValues() {
+  return {
+    name: productFormFields.name.value.trim(),
+    description: productFormFields.description.value.trim(),
+    price: parseProductPrice(productFormFields.price.value),
+    category:
+      productFormFields.category?.value === "기타"
+        ? productFormFields.categoryCustom?.value.trim()
+        : productFormFields.category?.value,
+    isCustomCategory: productFormFields.category?.value === "기타",
+  };
+}
+
+function isValidProductFormValues({ name, price }) {
+  return Boolean(name && Number.isFinite(price) && price >= 0);
+}
+
+async function uploadPendingProductImages() {
+  return Promise.all(pendingImageFiles.map((file) => uploadProductImage(file)));
+}
+
+function buildProductPayload(formValues, uploadedImageUrls) {
+  return {
+    name: formValues.name,
+    description: formValues.description,
+    price: formValues.price,
+    category: formValues.category,
+    images: getProductFormImagesForSave(uploadedImageUrls),
+  };
+}
+
+async function saveProduct(productBeingEdited, productPayload) {
+  return productBeingEdited
+    ? updateProduct(productBeingEdited, productPayload)
+    : createProduct(productPayload);
+}
+
+async function saveProductForm() {
+  if (!state.currentUser) {
+    showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
+    return false;
+  }
+
+  const productBeingEdited = editingProductId
+    ? findProductById(editingProductId)
+    : null;
+  const formValues = getProductFormValues();
+
+  if (!isValidProductFormValues(formValues)) {
+    showToast("판매 글 정보를 모두 입력해주세요.", { type: "error" });
+    return false;
+  }
+
+  if (!getClient()) {
+    showToast("Supabase 연결을 확인해주세요.", { type: "error" });
+    return false;
+  }
+
+  if (editingProductId && !productBeingEdited) {
+    showToast("수정할 상품을 찾지 못했습니다.", { type: "error" });
+    return false;
+  }
+
+  let uploadedImageUrls = [];
+  try {
+    uploadedImageUrls = await uploadPendingProductImages();
+  } catch (error) {
+    console.error("상품 이미지를 업로드하지 못했습니다.", error);
+    showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
+    return false;
+  }
+
+  if (formValues.isCustomCategory) {
+    await saveCustomCategory(formValues.category || "");
+  }
+
+  const productPayload = buildProductPayload(formValues, uploadedImageUrls);
+  const { error } = await saveProduct(productBeingEdited, productPayload);
+
+  if (error) {
+    console.error("상품을 저장하지 못했습니다.", error);
+    showToast("상품을 저장하지 못했습니다.", { type: "error" });
+    return false;
+  }
+
+  setProductFormMode();
+  await loadCustomCategoryOptions();
+  await loadProductsFromSupabase();
+  setView("market");
+  return true;
+}
+
+async function handleProductFormSubmit(event) {
+  event.preventDefault();
+  await saveProductForm();
 }
 
 async function toggleLike(productId) {
@@ -409,7 +965,7 @@ async function toggleLike(productId) {
     return;
   }
 
-  const product = state.products.find((item) => item.id === productId);
+  const product = findProductById(productId);
   if (!product) return;
 
   const nickname = state.currentUser.nickname;
@@ -465,13 +1021,12 @@ async function saveCustomCategory(category) {
   appendCustomCategoryOption(normalizedCategory);
 }
 function appendCustomCategoryOption(category) {
-  const categorySelect = document.querySelector("#categorySelect");
-  if (!categorySelect) return;
+  if (!productFormFields.category) return;
 
   const normalizedCategory = category.trim();
   if (!normalizedCategory) return;
 
-  const optionExists = Array.from(categorySelect.options).some(
+  const optionExists = Array.from(productFormFields.category.options).some(
     (option) => option.value === normalizedCategory,
   );
 
@@ -481,11 +1036,11 @@ function appendCustomCategoryOption(category) {
   option.value = normalizedCategory;
   option.textContent = normalizedCategory;
 
-  const otherOption = Array.from(categorySelect.options).find(
+  const otherOption = Array.from(productFormFields.category.options).find(
     (item) => item.value === "기타",
   );
 
-  categorySelect.insertBefore(option, otherOption || null);
+  productFormFields.category.insertBefore(option, otherOption || null);
 }
 
 async function loadCustomCategoryOptions() {
@@ -494,190 +1049,217 @@ async function loadCustomCategoryOptions() {
 
   const { data, error } = await client.from("categories").select("name");
 
-  console.log("categories:", data);
-
   if (error) {
     console.error("카테고리를 불러오지 못했습니다.", error);
     return;
   }
 
   (data || []).forEach((category) => {
-    console.log("append:", category.name);
-    appendCustomCategoryOption(category.name || "");
+    const categoryName = category.name || "";
+    appendCustomCategoryOption(categoryName);
+    if (categoryName.trim()) {
+      loadedCategories.add(categoryName.trim());
+    }
   });
+
+  syncMarketCategoryFilterOptions();
 }
 
 function updateCategoryCustomInputVisibility() {
-  const categorySelect = document.querySelector("#categorySelect");
-  const categoryCustomInput = document.querySelector("#categoryCustomInput");
+  if (!productFormFields.category || !productFormFields.categoryCustom) return;
 
-  if (!categorySelect || !categoryCustomInput) return;
-
-  if (categorySelect.value === "기타") {
-    categoryCustomInput.classList.remove("hidden");
+  if (productFormFields.category.value === "기타") {
+    productFormFields.categoryCustom.classList.remove("hidden");
   } else {
-    categoryCustomInput.classList.add("hidden");
-    categoryCustomInput.value = "";
+    productFormFields.categoryCustom.classList.add("hidden");
+    productFormFields.categoryCustom.value = "";
   }
 }
 
-
-uploadForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  if (!state.currentUser) {
-    showToast("로그인 후 판매 글을 등록할 수 있습니다.", { type: "error" });
-    return;
-  }
-
-  const fields = getProductFormFields();
-  const productBeingEdited = editingProductId
-    ? state.products.find((item) => item.id === editingProductId)
-    : null;
-  const name = fields.name.value.trim();
-  const photoFile = fields.photo.files[0];
-  const description = fields.description.value.trim();
-  const price = fields.price.value.replaceAll(",", "").trim();
-
-  const numericPrice = Number(price);
-
-  if (
-    !name ||
-    (!editingProductId && !photoFile) ||
-    !price ||
-    !Number.isFinite(numericPrice) ||
-    numericPrice < 0
-  ) {
-    showToast("판매 글 정보를 모두 입력해주세요.", { type: "error" });
-    return;
-  }
-
-  if (!getClient()) {
-    showToast("Supabase 연결을 확인해주세요.", { type: "error" });
-    return;
-  }
-
-  if (editingProductId && !productBeingEdited) {
-    showToast("수정할 상품을 찾지 못했습니다.", { type: "error" });
-    return;
-  }
-
-  let imageUrl = "";
-  if (photoFile) {
-    try {
-      imageUrl = await uploadProductImage(photoFile);
-    } catch (error) {
-      console.error("상품 이미지를 업로드하지 못했습니다.", error);
-      showToast("상품 이미지를 업로드하지 못했습니다.", { type: "error" });
-      return;
-    }
-  }
-  const categorySelect = fields.category;
-  const categoryCustomInput = fields.categoryCustom;
-
-  const category =
-    categorySelect?.value === "기타"
-      ? categoryCustomInput?.value.trim()
-      : categorySelect?.value;
-  console.log("category:", category);
-
-  if (categorySelect?.value === "기타") {
-    await saveCustomCategory(category || "");
-  }
-  const productPayload = {
-    name,
-    description,
-    price: numericPrice,
-    category,
-  };
-
-  if (imageUrl) {
-    productPayload.image = imageUrl;
-  }
-
-  let error;
-  if (productBeingEdited) {
-    ({ error } = await getClient()
-      .from("products")
-      .update(productPayload)
-      .eq("id", productBeingEdited.id)
-      .eq("seller", state.currentUser.nickname));
-  } else {
-    ({ error } = await getClient().from("products").insert({
-      ...productPayload,
-      image: imageUrl,
-      seller: state.currentUser.nickname,
-    }));
-  }
-
-  if (error) {
-    console.error("상품을 저장하지 못했습니다.", error);
-    showToast("상품을 저장하지 못했습니다.", { type: "error" });
-    return;
-  }
-
-  setProductFormMode();
-  await loadCustomCategoryOptions();
-  await loadProductsFromSupabase();
-  setView("market");
-});
-
-editNoticeButton.addEventListener("click", () => {
-  if (!isAdmin()) return;
-  noticeInput.value = state.notice;
-  noticeCopy.classList.add("hidden");
-  noticeEditor.classList.remove("hidden");
-  noticeInput.focus();
-});
-
-cancelNoticeButton.addEventListener("click", () => {
-  noticeEditor.classList.add("hidden");
-  noticeCopy.classList.remove("hidden");
-});
-
-productDetailCloseButton.addEventListener("click", closeProductDetailModal);
-
-productDetailLikeButton?.addEventListener("click", () => {
+async function handleProductDetailLikeClick() {
   if (currentProductId === null) return;
 
-  toggleLike(currentProductId);
-  refreshOpenProductDetailLike();
-});
+  await toggleLike(currentProductId);
+}
 
-productDetailEditButton?.addEventListener("click", startProductEdit);
+function handleProductDetailPointerCancel() {
+  detailImageDragStartX = null;
+  detailImageDidSwipe = false;
+}
 
-productDetailDeleteButton?.addEventListener("click", deleteCurrentProduct);
+function handleProductDetailHeroClick() {
+  if (detailImageDidSwipe) {
+    detailImageDidSwipe = false;
+    return;
+  }
 
-cancelProductEditButton.addEventListener("click", () => {
-  setProductFormMode();
-});
+  openImageViewer();
+}
 
-productDetailModal.addEventListener("click", (event) => {
+function handleProductDetailModalClick(event) {
   if (event.target === productDetailModal) {
     closeProductDetailModal();
+    return;
   }
-});
 
-noticeEditor.addEventListener("submit", (event) => {
+  if (!event.target.closest(".detail-more-menu")) {
+    closeProductDetailMoreMenu();
+  }
+}
+
+function handleImageViewerModalClick(event) {
+  if (
+    event.target === imageViewerModal ||
+    event.target.classList.contains("image-viewer-panel") ||
+    event.target.classList.contains("image-viewer-stage")
+  ) {
+    closeImageViewer();
+  }
+}
+
+function handleImageViewerKeydown(event) {
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    moveImageViewer(-1);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    moveImageViewer(1);
+  }
+}
+
+function handleProductImagePreviewClick(event) {
+  const button = event.target.closest(".remove-image-button");
+  if (!button) return;
+
+  removeProductImage(
+    button.dataset.imageType,
+    Number(button.dataset.imageIndex),
+  );
+}
+
+function handleNoticeEditorSubmit(event) {
   event.preventDefault();
   if (!isAdmin()) return;
 
   state.notice = noticeInput.value.trim() || defaultNotice;
   saveState();
   renderNotice();
-});
+}
 
-tabButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    setView(button.dataset.view);
+function handleMarketCategoryFilterChange(event) {
+  selectedMarketCategory = event.currentTarget.value || "전체";
+  renderProducts();
+}
+
+function bindNoticeEvents() {
+  editNoticeButton.addEventListener("click", () => {
+    if (!isAdmin()) return;
+    noticeInput.value = state.notice;
+    noticeCopy.classList.add("hidden");
+    noticeEditor.classList.remove("hidden");
+    noticeInput.focus();
   });
-});
 
-updateCategoryCustomInputVisibility();
+  cancelNoticeButton.addEventListener("click", () => {
+    noticeEditor.classList.add("hidden");
+    noticeCopy.classList.remove("hidden");
+  });
 
-document
-  .querySelector("#categorySelect")
-  ?.addEventListener("change", updateCategoryCustomInputVisibility);
+  noticeEditor.addEventListener("submit", handleNoticeEditorSubmit);
+}
+
+function bindProductDetailModalEvents() {
+  productDetailCloseButton.addEventListener("click", closeProductDetailModal);
+  productDetailLikeButton?.addEventListener(
+    "click",
+    handleProductDetailLikeClick,
+  );
+  productDetailEditButton?.addEventListener("click", startProductEdit);
+  productDetailDeleteButton?.addEventListener("click", deleteCurrentProduct);
+  productDetailMoreButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleProductDetailMoreMenu();
+  });
+  productDetailPrevButton?.addEventListener("click", () => {
+    moveProductDetailImage(-1);
+  });
+  productDetailNextButton?.addEventListener("click", () => {
+    moveProductDetailImage(1);
+  });
+  productDetailHeroImage?.addEventListener(
+    "pointerdown",
+    handleDetailImageDragStart,
+  );
+  productDetailHeroImage?.addEventListener(
+    "pointerup",
+    handleDetailImageDragEnd,
+  );
+  productDetailHeroImage?.addEventListener(
+    "pointercancel",
+    handleProductDetailPointerCancel,
+  );
+  productDetailHeroImage?.addEventListener(
+    "click",
+    handleProductDetailHeroClick,
+  );
+  productDetailModal.addEventListener("click", handleProductDetailModalClick);
+}
+
+function bindImageViewerEvents() {
+  imageViewerCloseButton?.addEventListener("click", closeImageViewer);
+  imageViewerPrevButton?.addEventListener("click", () => {
+    moveImageViewer(-1);
+  });
+  imageViewerNextButton?.addEventListener("click", () => {
+    moveImageViewer(1);
+  });
+  imageViewerModal?.addEventListener("click", handleImageViewerModalClick);
+  imageViewerModal?.addEventListener("keydown", handleImageViewerKeydown);
+}
+
+function bindProductFormEvents() {
+  uploadForm.addEventListener("submit", handleProductFormSubmit);
+  cancelProductEditButton.addEventListener("click", () => {
+    setProductFormMode();
+  });
+  photoUploadButton?.addEventListener("click", () => {
+    productFormFields.imageInput?.click();
+  });
+  productFormFields.imageInput?.addEventListener(
+    "change",
+    handleProductImageSelection,
+  );
+  productImagePreview?.addEventListener(
+    "click",
+    handleProductImagePreviewClick,
+  );
+  updateCategoryCustomInputVisibility();
+  productFormFields.category?.addEventListener(
+    "change",
+    updateCategoryCustomInputVisibility,
+  );
+}
+
+function bindNavigationEvents() {
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setView(button.dataset.view);
+    });
+  });
+
+  marketCategoryFilter?.addEventListener(
+    "change",
+    handleMarketCategoryFilterChange,
+  );
+}
+
+function bindEventListeners() {
+  bindNoticeEvents();
+  bindProductDetailModalEvents();
+  bindImageViewerEvents();
+  bindProductFormEvents();
+  bindNavigationEvents();
+}
 
 async function init() {
   // Supabase 클라이언트를 먼저 준비해야 세션 확인(requireAuth)이 가능하다
@@ -693,4 +1275,5 @@ async function init() {
   await loadProductsFromSupabase();
 }
 
+bindEventListeners();
 init();
