@@ -1,5 +1,5 @@
 import { state, saveState, createEmptyProfile } from "./store.js";
-import { escapeHtml, formatPrice, formatDate } from "./utils.js";
+import { escapeHtml, formatPrice, formatDate } from "./utils.js?v=price-free-v2";
 import { requireAuth, logout } from "./auth.js";
 import {
   setupSupabase,

@@ -8,7 +8,11 @@ export function escapeHtml(value) {
 }
 
 export function formatPrice(value) {
-  return `${Number(value).toLocaleString("ko-KR")}원`;
+  const price = Number(value);
+
+  if (price === 0) return "나눔";
+
+  return `${price.toLocaleString("ko-KR")}원`;
 }
 
 export function formatDate(value) {

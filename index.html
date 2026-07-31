@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>우리동네 플리마켓 </title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -51,7 +52,13 @@
                 <p class="eyebrow">Gallery</p>
                 <h2 id="marketTitle">판매 중인 물건</h2>
               </div>
-              <p class="market-count" id="marketCount"></p>
+              <div class="market-tools">
+                <p class="market-count" id="marketCount"></p>
+                <label for="marketCategoryFilter">카테고리</label>
+                <select id="marketCategoryFilter" aria-label="카테고리 필터">
+                  <option value="전체">전체</option>
+                </select>
+              </div>
             </div>
             <div class="product-grid" id="productGrid"></div>
           </section>
@@ -68,8 +75,14 @@
             <label for="productNameInput">상품명</label>
             <input id="productNameInput" maxlength="40" placeholder="예: 접이식 캠핑 의자" required />
 
-            <label for="photoInput">사진 1장</label>
-            <input id="photoInput" type="file" accept="image/*" required />
+            <label for="productImagesInput">사진 최대 3장</label>
+            <button class="photo-upload-card" id="photoUploadButton" type="button" aria-controls="productImagesInput">
+              <span class="photo-upload-icon" aria-hidden="true"></span>
+              <span>사진 추가</span>
+              <span class="photo-upload-count" id="photoUploadCount">0 / 3</span>
+            </button>
+            <input id="productImagesInput" class="product-image-input" type="file" accept="image/*" multiple capture="environment" />
+            <div class="product-image-preview" id="productImagePreview" aria-live="polite"></div>
 
             <label for="descriptionInput">간단한 설명</label>
             <textarea id="descriptionInput" rows="4" maxlength="220" placeholder="상품 상태, 간단한 설명을 작성해주세요."></textarea>
@@ -86,7 +99,7 @@
             <input id="categoryCustomInput" class="hidden" type="text" placeholder="카테고리를 입력해주세요." />
 
             <label for="priceInput">금액</label>
-            <input id="priceInput" type="number" inputmode="numeric" min="0" step="100" placeholder="예: 15000" required />
+            <input id="priceInput" type="text" inputmode="numeric" placeholder="₩ 가격을 입력해주세요" required />
 
             <button class="primary-button wide" id="productSubmitButton" type="submit">등록하기</button>
             <button class="secondary-button wide hidden" id="cancelProductEditButton" type="button">수정 취소</button>
@@ -117,54 +130,79 @@
 
     <dialog class="product-detail-modal" id="productDetailModal" aria-labelledby="productDetailTitle">
       <article class="product-detail-panel">
-        <button class="dialog-close-button" type="button" aria-label="상품 상세 닫기" title="닫기">
-          <span aria-hidden="true">×</span>
-        </button>
+        <header class="detail-sheet-header">
+          <span class="detail-sheet-handle" aria-hidden="true"></span>
+          <div class="detail-header-actions">
+            <div class="detail-more-menu">
+              <button class="detail-more-button hidden" type="button" aria-label="상품 더보기" title="더보기" aria-expanded="false">
+                <span aria-hidden="true">⋮</span>
+              </button>
+              <div class="detail-more-popover hidden" role="menu">
+                <button class="detail-edit-button" type="button" role="menuitem">수정</button>
+                <button class="detail-delete-button" type="button" role="menuitem">삭제</button>
+              </div>
+            </div>
+            <button class="dialog-close-button" type="button" aria-label="상품 상세 닫기" title="닫기">
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </header>
 
         <section class="detail-media" aria-label="상품 이미지">
           <div class="detail-hero-image" aria-label="대표 이미지"></div>
-          <div class="detail-thumbnail-strip" aria-label="상품 썸네일 목록">
-            <div class="detail-thumbnail" aria-label="썸네일 1"></div>
-            <div class="detail-thumbnail" aria-label="썸네일 2"></div>
-            <div class="detail-thumbnail" aria-label="썸네일 3"></div>
-          </div>
+          <button class="detail-image-nav detail-image-prev hidden" type="button" aria-label="이전 이미지">
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button class="detail-image-nav detail-image-next hidden" type="button" aria-label="다음 이미지">
+            <span aria-hidden="true">›</span>
+          </button>
+          <div class="detail-image-status hidden" aria-live="polite"></div>
+          <div class="detail-image-dots hidden" aria-label="상품 이미지 페이지"></div>
         </section>
 
         <section class="detail-content" aria-label="상품 정보">
-          <p class="detail-category">카테고리</p>
-          <h2 id="productDetailTitle">상품명</h2>
-          <strong class="detail-price">0원</strong>
+          <p class="detail-seller-date">판매자 · 등록일</p>
+          <div class="detail-title-row">
+            <div class="detail-title-stack">
+              <h2 id="productDetailTitle">상품명</h2>
+              <p class="detail-price-row">
+                <strong class="detail-price">나눔</strong>
+                <span aria-hidden="true">|</span>
+                <span class="detail-category">카테고리</span>
+              </p>
+            </div>
+            <button class="detail-like-button" type="button" aria-label="찜 개수" title="찜">
+              <span class="detail-like-icon" aria-hidden="true">♥</span>
+              <span class="detail-like-count">0</span>
+            </button>
+          </div>
           <p class="detail-description">상품 설명</p>
-          <dl class="detail-meta">
-            <div>
-              <dt>판매자</dt>
-              <dd>판매자</dd>
-            </div>
-            <div>
-              <dt>등록일</dt>
-              <dd>등록일</dd>
-            </div>
-            <div>
-              <dt>찜</dt>
-              <dd>0</dd>
-            </div>
-          </dl>
         </section>
 
-        <footer class="detail-actions" aria-label="상품 작업 영역">
-          <button class="secondary-button detail-edit-button hidden" type="button">수정</button>
-          <button class="secondary-button detail-delete-button hidden" type="button">삭제</button>
-          <button class="detail-like-button" type="button" aria-label="찜 개수" title="찜">
-            <span class="detail-like-icon" aria-hidden="true">♥</span>
-            <span class="detail-like-count">0</span>
-          </button>
-        </footer>
       </article>
+    </dialog>
+
+    <dialog class="image-viewer-modal" id="imageViewerModal" aria-label="상품 이미지 확대 보기">
+      <div class="image-viewer-panel">
+        <button class="image-viewer-close" type="button" aria-label="확대 이미지 닫기" title="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+        <button class="image-viewer-nav image-viewer-prev hidden" type="button" aria-label="이전 이미지">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <figure class="image-viewer-stage">
+          <img class="image-viewer-image" alt="" />
+          <figcaption class="image-viewer-status hidden" aria-live="polite"></figcaption>
+        </figure>
+        <button class="image-viewer-nav image-viewer-next hidden" type="button" aria-label="다음 이미지">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
     </dialog>
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=price-free-v2"></script>
   </body>
 </html>

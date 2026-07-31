@@ -1,5 +1,5 @@
 import { state, saveState, defaultNotice } from "./store.js";
-import { escapeHtml, formatPrice } from "./utils.js";
+import { escapeHtml, formatPrice } from "./utils.js?v=price-free-v2";
 import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
 import {
@@ -728,8 +728,9 @@ function setProductFormMode(product = null) {
 
   productFormFields.name.value = product.name || "";
   productFormFields.description.value = product.description || "";
-  productFormFields.price.value = Number.isFinite(Number(product.price))
-    ? String(Number(product.price))
+  const productPrice = Number(product.price);
+  productFormFields.price.value = Number.isFinite(productPrice)
+    ? formatPrice(productPrice)
     : "";
 
   const category = product.category || "";
@@ -773,6 +774,8 @@ function handleProductImageSelection(event) {
 
 function parseProductPrice(value) {
   const rawPrice = String(value || "").replaceAll(",", "").trim();
+  if (rawPrice === "나눔") return 0;
+
   const numericPriceText = rawPrice.endsWith("원")
     ? rawPrice.slice(0, -1).trim()
     : rawPrice;
