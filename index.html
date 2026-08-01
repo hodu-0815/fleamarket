@@ -6,6 +6,7 @@
     <title>우리동네 플리마켓 </title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="notice.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -24,27 +25,7 @@
 
       <main class="layout">
         <section class="view-panel active" id="marketView" data-view-panel="market">
-          <section class="notice-section" aria-labelledby="noticeTitle">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Notice</p>
-                <h2 id="noticeTitle">플리마켓 공지</h2>
-              </div>
-              <button class="icon-button hidden" id="editNoticeButton" type="button" aria-label="공지 편집" title="관리자 공지 편집">
-                <span aria-hidden="true">✎</span>
-              </button>
-            </div>
-            <article class="notice-copy" id="noticeCopy"></article>
-            <p class="admin-help" id="adminHelp">공지 수정은 관리자 계정으로 로그인하면 가능합니다.</p>
-            <form class="notice-editor hidden" id="noticeEditor">
-              <label for="noticeInput">공지 내용</label>
-              <textarea id="noticeInput" rows="5" maxlength="500"></textarea>
-              <div class="form-actions">
-                <button class="secondary-button" id="cancelNoticeButton" type="button">취소</button>
-                <button class="primary-button" type="submit">저장</button>
-              </div>
-            </form>
-          </section>
+          <div id="noticeRoot"></div>
 
           <section class="market-section" aria-labelledby="marketTitle">
             <div class="section-heading">
@@ -203,6 +184,6 @@
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="module" src="app.js?v=price-free-v2"></script>
+    <script type="module" src="app.js?v=notice-component-v1"></script>
   </body>
 </html>

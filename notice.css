@@ -1,0 +1,380 @@
+body.notice-modal-open {
+  overflow: hidden;
+}
+
+.notice-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.notice-hidden {
+  display: none !important;
+}
+
+.notice-component {
+  padding: 8px 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.notice-component-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  margin-bottom: 11px;
+}
+
+.notice-component-header h2 {
+  margin: 0;
+  color: #111;
+  font-size: 0.93rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.notice-create-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: #8a8a8a;
+  background: transparent;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.notice-create-icon {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
+.notice-create-button:hover,
+.notice-create-button:focus-visible {
+  color: #111;
+  background: #f3f3f3;
+  outline: none;
+}
+
+.notice-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notice-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border-radius: 6px;
+  padding: 0 11px 0 13px;
+  color: #252525;
+  background: #f3f3f3;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.35;
+  transition:
+    background-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.notice-item:hover {
+  background: #eeeeee;
+}
+
+.notice-item:active {
+  background: #e9e9e9;
+  transform: scale(0.99);
+}
+
+.notice-item:focus-visible {
+  outline: 2px solid rgba(37, 37, 37, 0.22);
+  outline-offset: 2px;
+}
+
+.notice-title {
+  display: block;
+  min-width: 0;
+  color: #8d8d8d;
+  font-size: 0.78rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-loading,
+.notice-empty {
+  min-height: 42px;
+  border-radius: 6px;
+  padding: 13px 12px;
+  color: #8d8d8d;
+  background: #f3f3f3;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.notice-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notice-loading-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #242424;
+  animation: notice-loading-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes notice-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.notice-dialog:not([open]) {
+  display: none;
+}
+
+.notice-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(calc(100% - 44px), 320px);
+  height: min(86dvh, 390px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  color: #111;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(37, 37, 37, 0.28);
+  animation: notice-dialog-in 0.18s ease-out;
+}
+
+.notice-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.62);
+  animation: notice-backdrop-in 0.18s ease-out;
+}
+
+.notice-dialog.closing {
+  animation: notice-dialog-out 0.16s ease-in forwards;
+}
+
+.notice-dialog.closing::backdrop {
+  animation: notice-backdrop-out 0.16s ease-in forwards;
+}
+
+.notice-dialog-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.notice-dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  color: #111;
+  background: transparent;
+  font-size: 1.08rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.notice-dialog-close:hover,
+.notice-dialog-close:focus-visible {
+  background: #f3f3f3;
+  outline: none;
+}
+
+.notice-detail-view {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 31px 24px 18px;
+}
+
+.notice-detail-view h2 {
+  margin: 0 0 12px;
+  color: #111;
+  font-size: 1.01rem;
+  font-weight: 900;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.notice-detail-content {
+  margin: 0;
+  color: #8d8d8d;
+  font-size: 0.77rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notice-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 11px;
+  padding: 0 20px 17px;
+}
+
+.notice-action-button {
+  min-height: 30px;
+  border: 1px solid #e6e6e6;
+  border-radius: 5px;
+  padding: 0 12px;
+  color: #111;
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.notice-action-button:hover,
+.notice-action-button:focus-visible {
+  background: #f7f7f7;
+  outline: none;
+}
+
+.notice-editor-form {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 40px 24px 18px;
+}
+
+.notice-editor-field {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.notice-editor-field input,
+.notice-editor-field textarea {
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 13px 36px 13px 16px;
+  color: #111;
+  background: #f5f5f5;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.notice-editor-field input {
+  height: 46px;
+}
+
+.notice-editor-field input::placeholder,
+.notice-editor-field textarea::placeholder {
+  color: #111;
+  opacity: 1;
+}
+
+.notice-editor-field textarea {
+  min-height: 201px;
+  resize: none;
+}
+
+.notice-input-clear {
+  position: absolute;
+  top: 17px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #dedede;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+}
+
+@keyframes notice-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes notice-dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes notice-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes notice-backdrop-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

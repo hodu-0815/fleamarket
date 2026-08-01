@@ -1,4 +1,4 @@
-import { state, saveState, defaultNotice } from "./store.js";
+import { state, saveState } from "./store.js";
 import { escapeHtml, formatPrice } from "./utils.js?v=price-free-v2";
 import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
@@ -7,6 +7,7 @@ import {
   getClient,
   updateProductLikes,
 } from "./supabase-client.js";
+import { initNotice } from "./notice.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
 const DEFAULT_PRODUCT_IMAGE =
@@ -18,11 +19,6 @@ const uploadForm = document.querySelector("#uploadForm");
 const photoUploadButton = document.querySelector("#photoUploadButton");
 const photoUploadCount = document.querySelector("#photoUploadCount");
 const productImagePreview = document.querySelector("#productImagePreview");
-const noticeCopy = document.querySelector("#noticeCopy");
-const noticeEditor = document.querySelector("#noticeEditor");
-const noticeInput = document.querySelector("#noticeInput");
-const editNoticeButton = document.querySelector("#editNoticeButton");
-const cancelNoticeButton = document.querySelector("#cancelNoticeButton");
 const productNameInput = document.querySelector("#productNameInput");
 const productImagesInput = document.querySelector("#productImagesInput");
 const descriptionInput = document.querySelector("#descriptionInput");
@@ -35,7 +31,6 @@ const marketCount = document.querySelector("#marketCount");
 const marketCategoryFilter = document.querySelector("#marketCategoryFilter");
 const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
-const adminHelp = document.querySelector("#adminHelp");
 const productDetailModal = document.querySelector("#productDetailModal");
 const productDetailHeroImage = document.querySelector(".detail-hero-image");
 const productDetailSellerDate = document.querySelector(".detail-seller-date");
@@ -209,17 +204,6 @@ function renderSession() {
   document.querySelector("#logoutButton").addEventListener("click", () => {
     logout();
   });
-}
-
-function renderNotice() {
-  noticeCopy.innerHTML = `<p>${escapeHtml(state.notice)}</p>`;
-  noticeInput.value = state.notice;
-  editNoticeButton.classList.toggle("hidden", !isAdmin());
-  adminHelp.textContent = isAdmin()
-    ? "연필 버튼을 눌러 공지사항을 수정할 수 있습니다."
-    : "공지 수정은 관리자 계정으로 로그인하면 가능합니다.";
-  noticeEditor.classList.add("hidden");
-  noticeCopy.classList.remove("hidden");
 }
 
 function getVisibleProducts() {
@@ -536,7 +520,6 @@ function refreshOpenProductDetailLike() {
 
 function render() {
   renderSession();
-  renderNotice();
   renderProducts();
 }
 
@@ -1140,35 +1123,9 @@ function handleProductImagePreviewClick(event) {
   );
 }
 
-function handleNoticeEditorSubmit(event) {
-  event.preventDefault();
-  if (!isAdmin()) return;
-
-  state.notice = noticeInput.value.trim() || defaultNotice;
-  saveState();
-  renderNotice();
-}
-
 function handleMarketCategoryFilterChange(event) {
   selectedMarketCategory = event.currentTarget.value || "전체";
   renderProducts();
-}
-
-function bindNoticeEvents() {
-  editNoticeButton.addEventListener("click", () => {
-    if (!isAdmin()) return;
-    noticeInput.value = state.notice;
-    noticeCopy.classList.add("hidden");
-    noticeEditor.classList.remove("hidden");
-    noticeInput.focus();
-  });
-
-  cancelNoticeButton.addEventListener("click", () => {
-    noticeEditor.classList.add("hidden");
-    noticeCopy.classList.remove("hidden");
-  });
-
-  noticeEditor.addEventListener("submit", handleNoticeEditorSubmit);
 }
 
 function bindProductDetailModalEvents() {
@@ -1257,7 +1214,6 @@ function bindNavigationEvents() {
 }
 
 function bindEventListeners() {
-  bindNoticeEvents();
   bindProductDetailModalEvents();
   bindImageViewerEvents();
   bindProductFormEvents();
@@ -1275,6 +1231,7 @@ async function init() {
   if (!(await requireAuth())) return;
 
   render();
+  await initNotice();
   await loadProductsFromSupabase();
 }
 

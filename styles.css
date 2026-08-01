@@ -96,7 +96,6 @@ h3 {
 }
 
 .session-panel,
-.notice-section,
 .login-section,
 .upload-section,
 .market-section,
@@ -181,7 +180,6 @@ h3 {
   gap: 14px;
 }
 
-.notice-section,
 .login-section,
 .upload-section,
 .market-section,
@@ -250,37 +248,12 @@ h3 {
   padding: 8px;
 }
 
-.notice-section {
-  background:
-    linear-gradient(135deg, rgba(242, 111, 79, 0.2), rgba(255, 250, 242, 0) 62%),
-    var(--surface);
-}
-
 .section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 13px;
-}
-
-.notice-copy {
-  min-height: 54px;
-  color: #403a35;
-  font-size: 0.93rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.notice-copy p {
-  margin: 0;
-}
-
-.admin-help {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
 }
 
 form {
