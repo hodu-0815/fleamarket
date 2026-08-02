@@ -3,20 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>우리동네 플리마켓 </title>
+    <title>유진이네 플리마켓</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="notice.css" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Flea Market</p>
-          <h1>우리동네 플리마켓</h1>
+      <header class="topbar profile-topbar">
+        <div class="hero-copy">
+          <p class="eyebrow">WELCOME TO</p>
+          <h1>유진이네 플리마켓</h1>
         </div>
         <div class="session-panel" id="sessionPanel"></div>
       </header>
+
+      <div id="noticeRoot"></div>
 
       <nav class="tabbar" aria-label="주요 메뉴">
         <button class="tab-button active" id="marketTabButton" type="button" data-view="market">마켓</button>
@@ -25,12 +27,9 @@
 
       <main class="layout">
         <section class="view-panel active" id="marketView" data-view-panel="market">
-          <div id="noticeRoot"></div>
-
           <section class="market-section" aria-labelledby="marketTitle">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Gallery</p>
                 <h2 id="marketTitle">판매 중인 물건</h2>
               </div>
               <div class="market-tools">

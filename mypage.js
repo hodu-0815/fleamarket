@@ -16,6 +16,18 @@ const likedCount = document.querySelector("#likedCount");
 const myProductsGrid = document.querySelector("#myProductsGrid");
 const myProductsCount = document.querySelector("#myProductsCount");
 const productTemplate = document.querySelector("#mypageProductTemplate");
+const DEFAULT_PRODUCT_IMAGE = "assets/default_image.png";
+const LEGACY_DEFAULT_PRODUCT_IMAGE =
+  "https://kqnxnnknexxkstwojwkb.supabase.co/storage/v1/object/public/product-images/default_image.png";
+
+function getProductPhoto(row) {
+  const images = Array.isArray(row.images) ? row.images : [];
+  const photo = [images[0], row.image, row.photo]
+    .map((url) => String(url || "").trim())
+    .find((url) => url && url !== LEGACY_DEFAULT_PRODUCT_IMAGE);
+
+  return photo || DEFAULT_PRODUCT_IMAGE;
+}
 
 const profileForm = document.querySelector("#profileForm");
 const profileNickname = document.querySelector("#profileNickname");
@@ -32,7 +44,7 @@ function normalizeProduct(row) {
   return {
     id: row.id,
     name: row.name,
-    photo: row.image || row.photo || "",
+    photo: getProductPhoto(row),
     description: row.description || "",
     price: Number(row.price || 0),
     seller: row.seller || "알 수 없음",

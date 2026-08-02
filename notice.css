@@ -18,10 +18,11 @@ body.notice-modal-open {
 }
 
 .notice-component {
-  padding: 8px 8px 10px;
+  padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .notice-component-header {
@@ -29,7 +30,7 @@ body.notice-modal-open {
   align-items: center;
   justify-content: space-between;
   min-height: 24px;
-  margin-bottom: 11px;
+  margin-bottom: 8px;
 }
 
 .notice-component-header h2 {
@@ -48,7 +49,7 @@ body.notice-modal-open {
   height: 28px;
   border: 0;
   border-radius: 6px;
-  color: #8a8a8a;
+  color: var(--brand-dark);
   background: transparent;
   font-size: 1.2rem;
   font-weight: 800;
@@ -62,26 +63,29 @@ body.notice-modal-open {
 
 .notice-create-button:hover,
 .notice-create-button:focus-visible {
-  color: #111;
-  background: #f3f3f3;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
   outline: none;
 }
 
 .notice-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
 }
 
 .notice-item {
   display: flex;
   align-items: center;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  height: 42px;
-  border-radius: 6px;
-  padding: 0 11px 0 13px;
+  min-height: 38px;
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+  border-radius: 0;
+  padding: 8px 0;
   color: #252525;
-  background: #f3f3f3;
+  background: transparent;
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.35;
@@ -91,23 +95,38 @@ body.notice-modal-open {
 }
 
 .notice-item:hover {
-  background: #eeeeee;
+  color: var(--brand-dark);
+  background: transparent;
 }
 
 .notice-item:active {
-  background: #e9e9e9;
+  background: transparent;
   transform: scale(0.99);
 }
 
 .notice-item:focus-visible {
-  outline: 2px solid rgba(37, 37, 37, 0.22);
+  outline: 2px solid var(--brand-focus);
   outline-offset: 2px;
+}
+
+.notice-item:last-child {
+  border-bottom: 0;
+}
+
+.notice-item::after {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+  content: "〉";
 }
 
 .notice-title {
   display: block;
+  flex: 1 1 auto;
   min-width: 0;
-  color: #8d8d8d;
+  color: var(--ink);
   font-size: 0.78rem;
   font-weight: 500;
   overflow: hidden;
@@ -117,11 +136,11 @@ body.notice-modal-open {
 
 .notice-loading,
 .notice-empty {
-  min-height: 42px;
-  border-radius: 6px;
-  padding: 13px 12px;
+  min-height: 30px;
+  border-radius: 0;
+  padding: 0;
   color: #8d8d8d;
-  background: #f3f3f3;
+  background: transparent;
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -136,7 +155,7 @@ body.notice-modal-open {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #242424;
+  background: var(--brand);
   animation: notice-loading-pulse 0.9s ease-in-out infinite;
 }
 
@@ -168,8 +187,8 @@ body.notice-modal-open {
   border: 0;
   border-radius: 16px;
   color: #111;
-  background: #fff;
-  box-shadow: 0 20px 60px rgba(37, 37, 37, 0.28);
+  background: var(--paper);
+  box-shadow: 0 20px 60px rgba(37, 37, 37, 0.22);
   animation: notice-dialog-in 0.18s ease-out;
 }
 
@@ -194,7 +213,7 @@ body.notice-modal-open {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #fff;
+  background: var(--paper);
 }
 
 .notice-dialog-close {
@@ -218,8 +237,10 @@ body.notice-modal-open {
 
 .notice-dialog-close:hover,
 .notice-dialog-close:focus-visible {
-  background: #f3f3f3;
-  outline: none;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
 }
 
 .notice-detail-view {
@@ -269,7 +290,19 @@ body.notice-modal-open {
 .notice-action-button:hover,
 .notice-action-button:focus-visible {
   background: #f7f7f7;
-  outline: none;
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+}
+
+.notice-editor-form .notice-action-button {
+  border-color: var(--brand);
+  color: #fff;
+  background: var(--brand);
+}
+
+.notice-editor-form .notice-action-button:hover,
+.notice-editor-form .notice-action-button:focus-visible {
+  background: var(--brand-dark);
 }
 
 .notice-editor-form {
@@ -291,7 +324,7 @@ body.notice-modal-open {
 .notice-editor-field input,
 .notice-editor-field textarea {
   width: 100%;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 4px;
   padding: 13px 36px 13px 16px;
   color: #111;
@@ -299,6 +332,12 @@ body.notice-modal-open {
   font-size: 0.9rem;
   font-weight: 400;
   line-height: 1.35;
+}
+
+.notice-editor-field input:focus,
+.notice-editor-field textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-focus);
 }
 
 .notice-editor-field input {
@@ -328,7 +367,7 @@ body.notice-modal-open {
   border: 0;
   border-radius: 50%;
   color: #fff;
-  background: #dedede;
+  background: var(--brand);
   font-size: 0.72rem;
   font-weight: 900;
   line-height: 1;

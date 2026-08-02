@@ -10,7 +10,8 @@ import {
 import { initNotice } from "./notice.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
-const DEFAULT_PRODUCT_IMAGE =
+const DEFAULT_PRODUCT_IMAGE = "assets/default_image.png";
+const LEGACY_DEFAULT_PRODUCT_IMAGE =
   "https://kqnxnnknexxkstwojwkb.supabase.co/storage/v1/object/public/product-images/default_image.png";
 const MAX_PRODUCT_IMAGES = 3;
 
@@ -96,7 +97,7 @@ function normalizeImageUrls(...sources) {
 
   return urls
     .map((url) => String(url || "").trim())
-    .filter(Boolean);
+    .filter((url) => url && url !== LEGACY_DEFAULT_PRODUCT_IMAGE);
 }
 
 function getProductImages(product = {}) {
@@ -192,15 +193,18 @@ function renderSession() {
   }
 
   sessionPanel.innerHTML = `
-    <strong>${escapeHtml(user.nickname)}${isAdmin(user) ? " · 관리자" : ""}</strong>
-    <p>${isAdmin(user) ? "공지 편집 권한이 있습니다." : "판매 등록과 찜하기가 가능합니다."}</p>
-    <div class="session-actions">
-      <a class="secondary-button session-link" href="mypage.html">마이페이지</a>
-      <button class="secondary-button" id="logoutButton" type="button">나가기</button>
+    <div class="profile">
+      <div class="profile-info">
+        <div class="nickname">${escapeHtml(user.nickname)}${isAdmin(user) ? " · 관리자" : ""}</div>
+        <div class="permission">${isAdmin(user) ? "공지 편집 권한이 있습니다." : "판매 등록과 찜하기가 가능합니다."}</div>
+      </div>
+      <div class="profile-actions">
+        <a class="secondary-button profile-mypage" href="mypage.html">마이페이지</a>
+        <button class="profile-logout-link" id="logoutButton" type="button">나가기 &gt;</button>
+      </div>
     </div>
   `;
 
-  // 로그아웃은 세션 정리 + 로그인 페이지 이동을 auth.js로 위임
   document.querySelector("#logoutButton").addEventListener("click", () => {
     logout();
   });
