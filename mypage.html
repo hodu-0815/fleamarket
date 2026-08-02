@@ -17,6 +17,63 @@
       </header>
 
       <main class="layout mypage-layout">
+        <section class="mypage-section" aria-labelledby="profileTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Profile</p>
+              <h2 id="profileTitle">내 정보</h2>
+            </div>
+          </div>
+
+          <form class="profile-form" id="profileForm">
+            <div class="avatar-row">
+              <div class="avatar-preview" id="avatarPreview" aria-hidden="true">
+                <img class="avatar-image hidden" id="avatarImage" alt="" />
+                <span class="avatar-initials" id="avatarInitials"></span>
+              </div>
+              <div class="avatar-fields">
+                <p class="profile-nickname" id="profileNickname"></p>
+                <label for="avatarInput">프로필 사진</label>
+                <input id="avatarInput" name="avatar" type="file" accept="image/*" />
+              </div>
+            </div>
+
+            <label for="relationshipInput">주인장과의 관계</label>
+            <textarea
+              id="relationshipInput"
+              name="relationship"
+              rows="3"
+              maxlength="120"
+              placeholder="예: 대학 동기, 동네 친구"
+            ></textarea>
+
+            <label for="bioInput">자기소개 한줄</label>
+            <input
+              id="bioInput"
+              name="bio"
+              maxlength="40"
+              placeholder="한 줄로 나를 소개해주세요"
+            />
+
+            <label for="visitTimeInput">방문 시간</label>
+            <input
+              id="visitTimeInput"
+              name="visitTime"
+              maxlength="40"
+              placeholder="예: 토 14:00–16:00"
+            />
+
+            <label for="dinnerInput">저녁 먹을까요?</label>
+            <select id="dinnerInput" name="dinner">
+              <option value="undecided">미정</option>
+              <option value="yes">먹을게요</option>
+              <option value="no">안 먹어요</option>
+            </select>
+
+            <button class="primary-button wide" type="submit">저장하기</button>
+          </form>
+        </section>
+
         <section class="mypage-section" aria-labelledby="likedTitle">
           <div class="section-heading">
             <div>

@@ -197,6 +197,59 @@ h3 {
   display: grid;
 }
 
+.avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.avatar-preview {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #ece5dc;
+}
+
+.avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-initials {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ink);
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.avatar-fields {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.profile-nickname {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.profile-form input[type="file"] {
+  padding: 8px;
+}
+
 .notice-section {
   background:
     linear-gradient(135deg, rgba(242, 111, 79, 0.2), rgba(255, 250, 242, 0) 62%),

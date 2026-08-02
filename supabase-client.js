@@ -1,9 +1,11 @@
-import { state, saveState } from "./store.js";
+import { state, saveState, createEmptyProfile } from "./store.js";
 
 // 아이디를 Supabase Auth용 "가짜 이메일"로 변환한다.
 // 실제 이메일을 수집하지 않기로 했기 때문에, 아이디에 고정 도메인을 붙여
 // 이메일 형식만 맞춰서 Auth에 넘긴다. (예: hanim -> hanim@fleamarket.local)
 const FAKE_EMAIL_DOMAIN = "fleamarket.local";
+const AVATAR_BUCKET = "avatars";
+const DINNER_VALUES = new Set(["yes", "no", "undecided"]);
 
 function idToEmail(id) {
   return `${String(id).trim().toLowerCase()}@${FAKE_EMAIL_DOMAIN}`;
@@ -68,11 +70,48 @@ export function getClient() {
   return supabaseClient;
 }
 
-// 로그인한 사용자의 프로필(닉네임/관리자여부)을 조회한다.
+// DB row → state.profile shape
+function normalizeProfile(row) {
+  const empty = createEmptyProfile();
+  if (!row) return empty;
+
+  const dinner = DINNER_VALUES.has(row.dinner) ? row.dinner : "undecided";
+
+  return {
+    relationship: row.relationship || "",
+    bio: row.bio || "",
+    visitTime: row.visit_time || "",
+    dinner,
+    avatarUrl: row.avatar_url || "",
+  };
+}
+
+// currentUser + profile을 한곳에서 동기화한다
+function applySessionUser(userId, profileRow, fallbackNickname) {
+  const nickname = profileRow?.nickname || fallbackNickname || "사용자";
+  state.currentUser = {
+    id: userId,
+    nickname,
+    isAdmin: Boolean(profileRow?.is_admin),
+  };
+  state.profile = normalizeProfile(profileRow);
+  saveState();
+  return state.currentUser;
+}
+
+function clearSession() {
+  state.currentUser = null;
+  state.profile = null;
+  saveState();
+}
+
+// 로그인한 사용자의 프로필(닉네임/관리자/확장 필드)을 조회한다.
 async function fetchProfile(client, userId) {
   const { data, error } = await client
     .from("profiles")
-    .select("nickname, is_admin")
+    .select(
+      "nickname, is_admin, relationship, bio, visit_time, dinner, avatar_url",
+    )
     .eq("id", userId)
     .single();
 
@@ -121,7 +160,10 @@ export async function signUp({ id, password, nickname, inviteCode }) {
       return { ok: false, reason: "duplicate_id" };
     }
     // Auth 대시보드 최소 비밀번호 길이(기본 6자)보다 짧을 때
-    if (/password/i.test(error.message) && /at least|characters|length|short/i.test(error.message)) {
+    if (
+      /password/i.test(error.message) &&
+      /at least|characters|length|short/i.test(error.message)
+    ) {
       return { ok: false, reason: "password_too_short" };
     }
     console.error("회원가입에 실패했습니다.", error);
@@ -134,10 +176,13 @@ export async function signUp({ id, password, nickname, inviteCode }) {
     return { ok: false, reason: "email_confirmation_required" };
   }
 
-  const user = { id: data.user.id, nickname: name, isAdmin: false };
-  state.currentUser = user;
-  saveState();
-  return { ok: true, user };
+  // 가입 직후엔 확장 필드가 비어 있으므로 빈 profile로 세션을 채운다
+  applySessionUser(
+    data.user.id,
+    { nickname: name, is_admin: false },
+    name,
+  );
+  return { ok: true, user: state.currentUser };
 }
 
 export async function signIn({ id, password }) {
@@ -154,17 +199,11 @@ export async function signIn({ id, password }) {
   }
 
   const profile = await fetchProfile(client, data.user.id);
-  const user = {
-    id: data.user.id,
-    nickname: profile?.nickname || id,
-    isAdmin: Boolean(profile?.is_admin),
-  };
-  state.currentUser = user;
-  saveState();
+  const user = applySessionUser(data.user.id, profile, id);
   return { ok: true, user };
 }
 
-// 현재 Supabase Auth 세션을 확인해 앱 세션(state.currentUser)과 동기화한다.
+// 현재 Supabase Auth 세션을 확인해 앱 세션(state.currentUser/profile)과 동기화한다.
 // 세션이 있으면 사용자 객체를, 없으면 null을 반환한다.
 export async function getSession() {
   const client = await setupSupabase();
@@ -174,25 +213,90 @@ export async function getSession() {
   const session = data.session;
 
   if (!session) {
-    state.currentUser = null;
-    saveState();
+    clearSession();
     return null;
   }
 
   const profile = await fetchProfile(client, session.user.id);
-  const user = {
-    id: session.user.id,
-    nickname: profile?.nickname || "사용자",
-    isAdmin: Boolean(profile?.is_admin),
-  };
-  state.currentUser = user;
-  saveState();
-  return user;
+  return applySessionUser(session.user.id, profile, "사용자");
 }
 
 export async function signOut() {
   const client = await setupSupabase();
-  state.currentUser = null;
-  saveState();
+  clearSession();
   if (client) await client.auth.signOut();
+}
+
+// 본인 프로필 확장 필드를 갱신한다 (닉네임/is_admin은 건드리지 않음)
+export async function updateProfile({
+  relationship,
+  bio,
+  visitTime,
+  dinner,
+  avatarUrl,
+}) {
+  const client = await setupSupabase();
+  if (!client) return { ok: false, reason: "no_client" };
+
+  const userId = state.currentUser?.id;
+  if (!userId) return { ok: false, reason: "no_session" };
+
+  const nextDinner = DINNER_VALUES.has(dinner) ? dinner : "undecided";
+  const payload = {
+    relationship: String(relationship || "").trim() || null,
+    bio: String(bio || "").trim() || null,
+    visit_time: String(visitTime || "").trim() || null,
+    dinner: nextDinner,
+    avatar_url: String(avatarUrl || "").trim() || null,
+  };
+
+  const { data, error } = await client
+    .from("profiles")
+    .update(payload)
+    .eq("id", userId)
+    .select(
+      "nickname, is_admin, relationship, bio, visit_time, dinner, avatar_url",
+    )
+    .single();
+
+  if (error) {
+    console.error("프로필을 저장하지 못했습니다.", error);
+    return { ok: false, reason: "unknown" };
+  }
+
+  applySessionUser(userId, data, state.currentUser.nickname);
+  return { ok: true, profile: state.profile };
+}
+
+// 아바타 이미지를 avatars 버킷에 올리고 public URL을 반환한다
+export async function uploadAvatar(file) {
+  const client = await setupSupabase();
+  if (!client) throw new Error("no_client");
+
+  const userId = state.currentUser?.id;
+  if (!userId) throw new Error("no_session");
+
+  const extension = file.name.split(".").pop() || "png";
+  const safeName =
+    file.name
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 48) || "avatar";
+  const uniqueId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+  // RLS가 path 첫 세그먼트를 auth.uid()와 비교하므로 userId 폴더 아래에 둔다
+  const filePath = `${userId}/${Date.now()}-${uniqueId}-${safeName}.${extension}`;
+
+  const { error } = await client.storage.from(AVATAR_BUCKET).upload(filePath, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  if (error) throw error;
+
+  const { data } = client.storage.from(AVATAR_BUCKET).getPublicUrl(filePath);
+  return data.publicUrl;
 }

@@ -1,7 +1,12 @@
-import { state, saveState } from "./store.js";
+import { state, saveState, createEmptyProfile } from "./store.js";
 import { escapeHtml, formatPrice, formatDate } from "./utils.js";
 import { requireAuth, logout } from "./auth.js";
-import { setupSupabase, getClient } from "./supabase-client.js";
+import {
+  setupSupabase,
+  getClient,
+  updateProfile,
+  uploadAvatar,
+} from "./supabase-client.js";
 import { showToast } from "./toast.js";
 
 const sessionPanel = document.querySelector("#mypageSessionPanel");
@@ -10,6 +15,16 @@ const likedCount = document.querySelector("#likedCount");
 const myProductsGrid = document.querySelector("#myProductsGrid");
 const myProductsCount = document.querySelector("#myProductsCount");
 const productTemplate = document.querySelector("#mypageProductTemplate");
+
+const profileForm = document.querySelector("#profileForm");
+const profileNickname = document.querySelector("#profileNickname");
+const relationshipInput = document.querySelector("#relationshipInput");
+const bioInput = document.querySelector("#bioInput");
+const visitTimeInput = document.querySelector("#visitTimeInput");
+const dinnerInput = document.querySelector("#dinnerInput");
+const avatarInput = document.querySelector("#avatarInput");
+const avatarImage = document.querySelector("#avatarImage");
+const avatarInitials = document.querySelector("#avatarInitials");
 
 // app.js normalizeProduct와 동일 shape로 맞춰 피드·마이페이지가 같은 필드를 쓴다
 function normalizeProduct(row) {
@@ -80,7 +95,7 @@ function renderSession() {
 
   sessionPanel.innerHTML = `
     <strong>${escapeHtml(user.nickname)}</strong>
-    <p>찜 목록과 내가 올린 상품을 확인하세요.</p>
+    <p>내 정보와 찜·판매 목록을 관리하세요.</p>
     <div class="session-actions">
       <a class="secondary-button session-link" href="index.html">마켓으로</a>
       <button class="secondary-button" id="mypageLogoutButton" type="button">로그아웃</button>
@@ -92,6 +107,41 @@ function renderSession() {
     .addEventListener("click", () => {
       logout();
     });
+}
+
+// 닉네임 앞글자로 이니셜 플레이스홀더를 만든다
+function getInitials(nickname) {
+  const text = String(nickname || "").trim();
+  if (!text) return "?";
+  return Array.from(text)[0];
+}
+
+function renderAvatar(avatarUrl, nickname) {
+  const hasImage = Boolean(avatarUrl);
+
+  avatarImage.classList.toggle("hidden", !hasImage);
+  avatarInitials.classList.toggle("hidden", hasImage);
+
+  if (hasImage) {
+    avatarImage.src = avatarUrl;
+    avatarImage.alt = `${nickname || "나"}의 프로필 사진`;
+  } else {
+    avatarImage.removeAttribute("src");
+    avatarImage.alt = "";
+    avatarInitials.textContent = getInitials(nickname);
+  }
+}
+
+function fillProfileForm() {
+  const user = state.currentUser;
+  const profile = state.profile || createEmptyProfile();
+
+  profileNickname.textContent = user?.nickname || "";
+  relationshipInput.value = profile.relationship || "";
+  bioInput.value = profile.bio || "";
+  visitTimeInput.value = profile.visitTime || "";
+  dinnerInput.value = profile.dinner || "undecided";
+  renderAvatar(profile.avatarUrl, user?.nickname);
 }
 
 function createProductCard(product, { showUnlike = false } = {}) {
@@ -172,6 +222,7 @@ function renderMyProducts() {
 
 function render() {
   renderSession();
+  fillProfileForm();
   renderLikedList();
   renderMyProducts();
 }
@@ -190,12 +241,76 @@ function unlikeProduct(productId) {
   showToast("찜을 취소했습니다.", { type: "success" });
 }
 
+// 선택한 파일을 즉시 미리보기로 보여준다 (저장 전 로컬 미리보기)
+function bindAvatarPreview() {
+  avatarInput.addEventListener("change", () => {
+    const file = avatarInput.files?.[0];
+    if (!file) {
+      renderAvatar(state.profile?.avatarUrl, state.currentUser?.nickname);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    avatarImage.classList.remove("hidden");
+    avatarInitials.classList.add("hidden");
+    avatarImage.src = objectUrl;
+    avatarImage.alt = "선택한 프로필 사진 미리보기";
+  });
+}
+
+async function handleProfileSubmit(event) {
+  event.preventDefault();
+
+  const relationship = relationshipInput.value.trim();
+  const bio = bioInput.value.trim();
+  const visitTime = visitTimeInput.value.trim();
+  const dinner = dinnerInput.value;
+  const file = avatarInput.files?.[0];
+
+  if (bio.length > 40) {
+    showToast("자기소개는 40자 이하로 입력해주세요.", { type: "error" });
+    return;
+  }
+
+  let avatarUrl = state.profile?.avatarUrl || "";
+
+  if (file) {
+    try {
+      avatarUrl = await uploadAvatar(file);
+    } catch (error) {
+      console.error("프로필 사진을 업로드하지 못했습니다.", error);
+      showToast("프로필 사진을 업로드하지 못했습니다.", { type: "error" });
+      return;
+    }
+  }
+
+  const result = await updateProfile({
+    relationship,
+    bio,
+    visitTime,
+    dinner,
+    avatarUrl,
+  });
+
+  if (!result.ok) {
+    showToast("내 정보를 저장하지 못했습니다.", { type: "error" });
+    return;
+  }
+
+  avatarInput.value = "";
+  fillProfileForm();
+  showToast("내 정보를 저장했습니다.", { type: "success" });
+}
+
 export function initMypage() {
+  bindAvatarPreview();
+  profileForm.addEventListener("submit", handleProfileSubmit);
   render();
 }
 
 async function boot() {
   await setupSupabase();
+  // requireAuth → getSession이 currentUser/profile을 채운다
   if (!(await requireAuth())) return;
 
   await loadProducts();

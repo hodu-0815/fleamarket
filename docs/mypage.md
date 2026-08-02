@@ -13,34 +13,50 @@
 - **로그아웃**: `auth.logout()` → 로그인 페이지로 이동.
 - **마켓으로**: `index.html` 링크.
 
-### 내정보 수정 (Phase 2) — 미구현
+### 내정보 수정 (Phase 2) — 구현됨
 
-- **수정 가능 필드**: 주인장과의 관계, 자기소개 한줄, 방문시간, 저녁먹을지 여부
-- **아웃풋**: 저장 시 `profiles` 업데이트 + `state.profile` 갱신.
+- **수정 가능 필드**:
+  - `relationship` — 주인장과의 관계 (textarea, max 120)
+  - `bio` — 자기소개 한줄 (max 40)
+  - `visit_time` — 방문 시간 (자유 텍스트)
+  - `dinner` — `yes` | `no` | `undecided` (셀렉트)
+  - `avatar_url` — 프로필 사진 (Storage `avatars` 업로드)
+- **닉네임**: 표시만 (수정 불가)
+- **아바타 미등록**: 닉네임 이니셜 원형 플레이스홀더
+- **아웃풋**: 저장 시 `profiles` update + `state.profile` 갱신
 
 ## 2. 필요한 공용 함수
 
-- `supabase-client.js`: `setupSupabase()`, `getClient()`
+- `supabase-client.js`: `setupSupabase()`, `getClient()`, `updateProfile()`, `uploadAvatar()`
 - `auth.js`: `requireAuth()`, `logout()`
-- `store.js`: `state`, `saveState()`
+- `store.js`: `state`, `saveState()`, `createEmptyProfile()`
 - `utils.js`: `escapeHtml()`, `formatPrice()`, `formatDate()`
 - `toast.js`: `showToast()`
 
-## 3. Supabase 쿼리 / Phase 1 임시 데이터
+## 3. Supabase 쿼리 / 데이터
+
+### Phase 2 프로필
+
+- 읽기: `getSession`/`signIn` → `profiles` select (확장 필드 포함) → `state.profile`
+- 저장: `updateProfile` → `profiles` update (본인 row, RLS)
+- 아바타: `uploadAvatar` → Storage 버킷 `avatars` (`{userId}/...` path)
+
+### Phase 1 상품 (임시)
 
 - 상품 목록: `products` select (피드와 동일)
 - **내 상품**: `owner_id` 컬럼이 없어 `seller`(닉네임 문자열)로 필터
-- **내 찜**: `likes` 테이블이 아직 없음. 피드(`app.js` `toggleLike`)가 localStorage `product.likes`(닉네임 배열)에만 쓰므로, 서버 fetch 후 동일 id의 local likes를 병합해 표시
-- **찜 회수**: localStorage에서 닉네임 제거 후 `saveState()` (서버 DELETE 없음)
-
-> 이후 `likes` 테이블 / `owner_id` 도입 시 이 문서를 갱신하고 mypage·피드 찜을 서버로 이전한다.
+- **내 찜**: `likes` 테이블이 아직 없음. localStorage `product.likes` 병합
+- **찜 회수**: localStorage에서 닉네임 제거 후 `saveState()`
 
 ## 4. state 키
 
-- 읽기: `state.currentUser`, `state.products`
-- 쓰기: `state.products`(찜 회수 시 likes 배열), 로그아웃은 `auth.logout` → `state.currentUser = null`
+- 읽기: `state.currentUser`, `state.profile`, `state.products`
+- 쓰기: `state.profile`(내정보 저장), `state.products`(찜 회수), 로그아웃 시 `currentUser`/`profile` null
 
-## 닫힌 결정 (Phase 1)
+## 닫힌 결정
 
-- 찜 목록/내 상품: 서버 products fetch + localStorage likes 병합 / `seller` 필터로 확정 (임시)
-- 진입: 별도 `mypage.html` (index 탭 아님)
+- Phase 1: 찜/내 상품은 localStorage likes + `seller` 필터 (임시)
+- Phase 1: 진입은 별도 `mypage.html`
+- Phase 2: 폼은 `mypage.html` 상단 섹션
+- Phase 2: 아바타 미등록 시 이니셜 플레이스홀더 (랜덤 에셋 없음)
+- Phase 2: `dinner`는 text enum (`yes`/`no`/`undecided`)
