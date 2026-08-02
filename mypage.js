@@ -6,6 +6,7 @@ import {
   getClient,
   updateProfile,
   uploadAvatar,
+  updateProductLikes,
 } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 
@@ -44,28 +45,11 @@ function normalizeProduct(row) {
   };
 }
 
-// 서버 products에는 likes 컬럼이 없으므로, 피드(toggleLike)가 쓴 localStorage likes를 덮어씌운다
-function mergeLocalLikes(products) {
-  const localById = new Map(
-    (state.products || []).map((item) => [String(item.id), item]),
-  );
-
-  return products.map((product) => {
-    const local = localById.get(String(product.id));
-    if (local && Array.isArray(local.likes)) {
-      return { ...product, likes: [...local.likes] };
-    }
-    return product;
-  });
-}
-
 async function loadProducts() {
   const client = getClient();
   if (!client) {
-    // 클라이언트 없어도 localStorage 상품으로 화면은 그릴 수 있다
-    state.products = mergeLocalLikes(
-      (state.products || []).map(normalizeProduct),
-    );
+    // 클라이언트가 없으면 localStorage에 남은 상품으로만 화면을 그린다
+    state.products = (state.products || []).map(normalizeProduct);
     return;
   }
 
@@ -84,8 +68,8 @@ async function loadProducts() {
     return;
   }
 
-  const fromServer = (data || []).map(normalizeProduct);
-  state.products = mergeLocalLikes(fromServer);
+  // 찜(likes)은 서버 products.likes 컬럼을 그대로 신뢰한다 (더 이상 localStorage로 덮어쓰지 않음)
+  state.products = (data || []).map(normalizeProduct);
   saveState();
 }
 
@@ -227,15 +211,24 @@ function render() {
   renderMyProducts();
 }
 
-// 찜 취소는 서버 likes 테이블이 없어 localStorage만 갱신한다 (피드와 동일)
-function unlikeProduct(productId) {
+// 찜 취소는 서버 products.likes 배열에서 내 닉네임을 빼고 저장한다 (피드 toggleLike와 동일 방식)
+async function unlikeProduct(productId) {
   if (!state.currentUser) return;
 
   const product = state.products.find((item) => item.id === productId);
   if (!product) return;
 
   const nickname = state.currentUser.nickname;
-  product.likes = product.likes.filter((name) => name !== nickname);
+  const nextLikes = product.likes.filter((name) => name !== nickname);
+
+  const result = await updateProductLikes(product.id, nextLikes);
+  if (!result.ok) {
+    showToast("찜을 취소하지 못했습니다.", { type: "error" });
+    return;
+  }
+
+  // 서버가 확정한 likes로 로컬 상태를 맞춘 뒤 목록을 다시 그린다
+  product.likes = result.likes;
   saveState();
   renderLikedList();
   showToast("찜을 취소했습니다.", { type: "success" });

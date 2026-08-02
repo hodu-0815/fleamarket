@@ -2,7 +2,11 @@ import { state, saveState, defaultNotice } from "./store.js";
 import { escapeHtml, formatPrice, formatDate } from "./utils.js";
 import { showToast } from "./toast.js";
 import { requireAuth, logout } from "./auth.js";
-import { setupSupabase, getClient } from "./supabase-client.js";
+import {
+  setupSupabase,
+  getClient,
+  updateProductLikes,
+} from "./supabase-client.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
 
@@ -205,7 +209,7 @@ function setView(viewName) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function toggleLike(productId) {
+async function toggleLike(productId) {
   if (!state.currentUser) {
     showToast("로그인 후 찜할 수 있습니다.", { type: "error" });
     return;
@@ -215,10 +219,20 @@ function toggleLike(productId) {
   if (!product) return;
 
   const nickname = state.currentUser.nickname;
-  product.likes = product.likes.includes(nickname)
+  // 이미 찜했으면 내 닉네임을 빼고, 아니면 추가한 새 배열을 만든다
+  const nextLikes = product.likes.includes(nickname)
     ? product.likes.filter((name) => name !== nickname)
     : [...product.likes, nickname];
 
+  // 서버 products.likes 컬럼에 반영해야 다른 기기/마이페이지에서도 동일하게 보인다
+  const result = await updateProductLikes(product.id, nextLikes);
+  if (!result.ok) {
+    showToast("찜 정보를 저장하지 못했습니다.", { type: "error" });
+    return;
+  }
+
+  // 서버가 확정한 likes로 로컬 상태를 맞춘 뒤 다시 그린다
+  product.likes = result.likes;
   saveState();
   renderProducts();
 }

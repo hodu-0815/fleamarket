@@ -268,6 +268,29 @@ export async function updateProfile({
   return { ok: true, profile: state.profile };
 }
 
+// 상품 찜(likes)을 서버에 저장한다.
+// likes는 찜한 사용자의 닉네임 배열이며, products.likes(text[]) 컬럼에 그대로 반영한다.
+// 토글(추가/삭제) 판단은 호출부(도메인)에서 하고, 여기서는 최종 배열을 저장만 한다.
+export async function updateProductLikes(productId, likes) {
+  const client = await setupSupabase();
+  if (!client) return { ok: false, reason: "no_client" };
+
+  const { data, error } = await client
+    .from("products")
+    .update({ likes })
+    .eq("id", productId)
+    .select("likes")
+    .single();
+
+  if (error) {
+    console.error("찜 정보를 저장하지 못했습니다.", error);
+    return { ok: false, reason: "unknown" };
+  }
+
+  // 서버가 확정한 likes를 돌려줘 호출부가 로컬 상태를 맞출 수 있게 한다
+  return { ok: true, likes: Array.isArray(data?.likes) ? data.likes : [] };
+}
+
 // 아바타 이미지를 avatars 버킷에 올리고 public URL을 반환한다
 export async function uploadAvatar(file) {
   const client = await setupSupabase();
