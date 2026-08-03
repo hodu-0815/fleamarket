@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>친구맵 · 우리동네 플리마켓</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Friend Map</p>
+          <h1>친구맵</h1>
+        </div>
+        <div class="session-panel" id="friendmapSessionPanel"></div>
+      </header>
+
+      <main class="layout">
+        <section class="mypage-section" aria-labelledby="timelineTitle">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Timeline</p>
+              <h2 id="timelineTitle">언제 누가 오나요?</h2>
+            </div>
+            <p class="market-count" id="friendCount"></p>
+          </div>
+          <!-- 방문 시간순으로 참석자를 세로로 그리는 타임라인 컨테이너 -->
+          <div class="timeline" id="timeline"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 타임라인 카드 1건: 시각 뱃지 + 썸네일(이미지 or 이니셜) + 닉네임 + 관계 -->
+    <template id="friendCardTemplate">
+      <article class="timeline-item">
+        <div class="timeline-time">
+          <span class="time-badge"></span>
+        </div>
+        <div class="friend-card">
+          <div class="friend-avatar" aria-hidden="true">
+            <img class="friend-avatar-image hidden" alt="" />
+            <span class="friend-avatar-initials"></span>
+          </div>
+          <div class="friend-meta">
+            <p class="friend-nickname"></p>
+            <p class="friend-relationship"></p>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="friendmap.js"></script>
+  </body>
+</html>
