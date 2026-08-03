@@ -1,5 +1,11 @@
 import { normalizeNickname } from "./utils.js";
-import { signUp, signIn, signOut, getSession } from "./supabase-client.js";
+import {
+  signUp,
+  signIn,
+  signOut,
+  getSession,
+  updateProfile,
+} from "./supabase-client.js";
 import { showToast } from "./toast.js";
 
 const FIELD_ERROR_IDS = {
@@ -165,6 +171,8 @@ async function handleSignup(event, onSuccess) {
   const passwordConfirm = String(formData.get("passwordConfirm") || "");
   const nickname = normalizeNickname(String(formData.get("nickname") || ""));
   const inviteCode = String(formData.get("inviteCode") || "").trim();
+  // 방문 시간은 선택 입력. 기본값 "미정"이면 빈 문자열이라 가입 후 별도 저장을 건너뛴다.
+  const visitTime = String(formData.get("visitTime") || "").trim();
 
   const errors = validate({
     id,
@@ -191,7 +199,13 @@ async function handleSignup(event, onSuccess) {
     return;
   }
 
-  // 세션은 signUp 내부에서 state.currentUser에 채워져 자동 로그인 상태가 된다
+  // 세션은 signUp 내부에서 state.currentUser에 채워져 자동 로그인 상태가 된다.
+  // 가입 시 트리거는 닉네임/초대코드만 프로필에 넣으므로, 선택 입력한 방문 시간은 여기서 반영한다.
+  // (미정이면 빈 값이라 불필요한 요청을 아끼려고 건너뛴다. 실패해도 가입 자체는 성공 처리한다.)
+  if (visitTime) {
+    await updateProfile({ visitTime });
+  }
+
   form.reset();
   showToast(`${result.user.nickname}님, 가입을 환영해요!`, { type: "success" });
   onSuccess?.();

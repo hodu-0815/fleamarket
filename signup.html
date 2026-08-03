@@ -44,6 +44,17 @@
             <input id="signupInvite" name="inviteCode" maxlength="24" placeholder="초대코드를 입력하세요" required aria-describedby="signupInviteError" />
             <p class="field-error" id="signupInviteError" aria-live="assertive"></p>
 
+            <label for="signupVisitTime">방문 시간</label>
+            <!-- 선택 입력: 오후 2시~6시 방문 시각. 기본값은 미정이며, HH:MM 형식이라 친구맵 타임라인 정렬에 그대로 쓰인다 -->
+            <select id="signupVisitTime" name="visitTime">
+              <option value="">미정</option>
+              <option value="14:00">오후 2시</option>
+              <option value="15:00">오후 3시</option>
+              <option value="16:00">오후 4시</option>
+              <option value="17:00">오후 5시</option>
+              <option value="18:00">오후 6시</option>
+            </select>
+
             <button class="primary-button wide" type="submit">회원가입</button>
           </form>
           <p class="auth-switch">
