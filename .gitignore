@@ -1,4 +1,5 @@
 .env
 config.js
+env-config.js
 .omc/
 .cursor/
