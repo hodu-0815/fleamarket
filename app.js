@@ -1,18 +1,26 @@
 import { state, saveState } from "./store.js";
 import { escapeHtml, formatPrice } from "./utils.js?v=price-free-v2";
 import { showToast } from "./toast.js";
-import { requireAuth, logout } from "./auth.js";
+import { requireAuth } from "./auth.js";
 import {
   setupSupabase,
   getClient,
-  updateProductLikes,
+  fetchFriends,
 } from "./supabase-client.js";
 import { initNotice } from "./notice.js";
+// 상품 상세 팝업은 메인피드·마이페이지가 공유하는 공용 모듈로 분리했다.
+// 상세 보기 관련 헬퍼(이미지/소유 판별)도 상세 모듈을 단일 출처로 삼아 여기서 import만 한다.
+import {
+  initProductDetail,
+  openProductDetail,
+  getProductImages,
+  normalizeImageUrls,
+  findProductById,
+  canEditProduct,
+} from "./product-detail.js";
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
 const DEFAULT_PRODUCT_IMAGE = "assets/default_image.png";
-const LEGACY_DEFAULT_PRODUCT_IMAGE =
-  "https://kqnxnnknexxkstwojwkb.supabase.co/storage/v1/object/public/product-images/default_image.png";
 const MAX_PRODUCT_IMAGES = 3;
 
 const sessionPanel = document.querySelector("#sessionPanel");
@@ -32,32 +40,13 @@ const marketCount = document.querySelector("#marketCount");
 const marketCategoryFilter = document.querySelector("#marketCategoryFilter");
 const tabButtons = document.querySelectorAll(".tab-button");
 const viewPanels = document.querySelectorAll("[data-view-panel]");
-const productDetailModal = document.querySelector("#productDetailModal");
-const productDetailHeroImage = document.querySelector(".detail-hero-image");
-const productDetailSellerDate = document.querySelector(".detail-seller-date");
-const productDetailCategory = document.querySelector(".detail-category");
-const productDetailTitle = document.querySelector("#productDetailTitle");
-const productDetailPrice = document.querySelector(".detail-price");
-const productDetailDescription = document.querySelector(".detail-description");
-const productDetailCloseButton = document.querySelector(".dialog-close-button");
-const productDetailLikeButton = document.querySelector(".detail-like-button");
-const productDetailLikeCount = document.querySelector(".detail-like-count");
-const productDetailPrevButton = document.querySelector(".detail-image-prev");
-const productDetailNextButton = document.querySelector(".detail-image-next");
-const productDetailImageStatus = document.querySelector(".detail-image-status");
-const productDetailImageDots = document.querySelector(".detail-image-dots");
-const productDetailMoreButton = document.querySelector(".detail-more-button");
-const productDetailMorePopover = document.querySelector(".detail-more-popover");
-const productDetailEditButton = document.querySelector(".detail-edit-button");
-const productDetailDeleteButton = document.querySelector(
-  ".detail-delete-button",
-);
-const imageViewerModal = document.querySelector("#imageViewerModal");
-const imageViewerImage = document.querySelector(".image-viewer-image");
-const imageViewerCloseButton = document.querySelector(".image-viewer-close");
-const imageViewerPrevButton = document.querySelector(".image-viewer-prev");
-const imageViewerNextButton = document.querySelector(".image-viewer-next");
-const imageViewerStatus = document.querySelector(".image-viewer-status");
+const openSellButton = document.querySelector("#openSellButton");
+const fabLayer = document.querySelector("#fabLayer");
+const sellModal = document.querySelector("#sellModal");
+const sellCloseButton = document.querySelector("#sellCloseButton");
+const timeline = document.querySelector("#timeline");
+const friendCount = document.querySelector("#friendCount");
+const friendCardTemplate = document.querySelector("#friendCardTemplate");
 const productSubmitButton = document.querySelector("#productSubmitButton");
 const cancelProductEditButton = document.querySelector(
   "#cancelProductEditButton",
@@ -70,42 +59,18 @@ const productFormFields = {
   categoryCustom: categoryCustomInput,
   price: priceInput,
 };
-let currentProductId = null;
 let editingProductId = null;
 let retainedImageUrls = [];
 let pendingImageFiles = [];
 let productImagePreviewObjectUrls = [];
-let currentDetailImages = [DEFAULT_PRODUCT_IMAGE];
-let currentDetailImageIndex = 0;
-let detailImageDragStartX = null;
-let detailImageDidSwipe = false;
-let currentViewerImageIndex = 0;
 let selectedMarketCategory = "전체";
 const loadedCategories = new Set();
+// 친구들 탭은 처음 열 때 한 번만 서버에서 참석자 목록을 불러온다
+let friendsLoaded = false;
 
 // 관리자 여부는 profiles.is_admin 플래그로 판정한다(닉네임 하드코딩 제거).
 function isAdmin(user = state.currentUser) {
   return Boolean(user?.isAdmin);
-}
-
-function normalizeImageUrls(...sources) {
-  const urls = sources.flatMap((source) => {
-    if (Array.isArray(source)) return source;
-    if (typeof source === "string") return [source];
-    return [];
-  });
-
-  return urls
-    .map((url) => String(url || "").trim())
-    .filter((url) => url && url !== LEGACY_DEFAULT_PRODUCT_IMAGE);
-}
-
-function getProductImages(product = {}) {
-  const images = normalizeImageUrls(product.images);
-  const legacyImages = normalizeImageUrls(product.image, product.photo);
-  const productImages = images.length ? images : legacyImages;
-
-  return productImages.length ? productImages : [DEFAULT_PRODUCT_IMAGE];
 }
 
 function normalizeProduct(row) {
@@ -148,6 +113,8 @@ async function loadProductsFromSupabase() {
 
   state.products = (data || []).map(normalizeProduct);
   renderProducts();
+  // 상품이 로드된 뒤 프로필 카드의 "올린 상품 수"를 최신값으로 다시 그린다
+  renderSession();
 }
 
 async function uploadProductImage(file) {
@@ -180,6 +147,38 @@ async function uploadProductImage(file) {
   return data.publicUrl;
 }
 
+// 닉네임 앞글자로 아바타 이니셜 플레이스홀더를 만든다 (마이페이지/친구맵과 동일 규칙)
+function getInitials(nickname) {
+  const text = String(nickname || "").trim();
+  if (!text) return "?";
+  return Array.from(text)[0];
+}
+
+// 현재 로그인 사용자가 올린 상품 수를 센다. 상품은 seller(닉네임)로 소유를 판별한다.
+function countMyProducts(nickname) {
+  if (!nickname) return 0;
+  return state.products.filter((product) => product.seller === nickname).length;
+}
+
+// 방문 시간 문자열에서 입장 시각을 뽑아 "오후 N시" 형태로 표시한다(타임라인 뱃지와 동일 규칙).
+// 예: "14:00" -> "오후 2시". HH:MM이 없으면 요일만 떼고 원문을 유지한다(레거시 자유 텍스트 대비).
+function formatVisitTimeDisplay(visitTime) {
+  const text = String(visitTime || "").trim();
+  if (!text) return "";
+  // 첫 번째 HH:MM 토큰(=입장 시각)을 오전/오후 12시간제로 변환한다
+  const match = text.match(/(\d{1,2}):(\d{2})/);
+  if (match) {
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const period = hour < 12 ? "오전" : "오후";
+    // 0시·12시는 12로, 그 외 오후 시각은 12를 빼서 1~12 범위로 맞춘다
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    const minuteText = minute > 0 ? ` ${minute}분` : "";
+    return `${period} ${hour12}시${minuteText}`;
+  }
+  return text.replace(/^[월화수목금토일](요일)?\s*/, "").trim() || text;
+}
+
 function renderSession() {
   const user = state.currentUser;
 
@@ -192,22 +191,46 @@ function renderSession() {
     return;
   }
 
+  const profile = state.profile || {};
+  const avatarUrl = String(profile.avatarUrl || "").trim();
+  // 방문 시간은 요일을 떼고 시간만 노출한다
+  const visitTime = formatVisitTimeDisplay(profile.visitTime);
+  const relationship = String(profile.relationship || "").trim();
+  const productCount = countMyProducts(user.nickname);
+
+  // 아바타: 이미지가 있으면 <img>, 없으면 닉네임 이니셜을 보여준다
+  const avatarInner = avatarUrl
+    ? `<img class="profile-card-avatar-image" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(user.nickname)}의 프로필 사진" />`
+    : `<span class="profile-card-avatar-initials">${escapeHtml(getInitials(user.nickname))}</span>`;
+
+  // 관리자만 역할 배지를 노출한다 (닉네임 옆 접미사 대신 별도 pill로 분리)
+  const roleBadge = isAdmin(user)
+    ? `<span class="profile-card-role">관리자</span>`
+    : "";
+
+  // 아바타 옆 한 열에 닉네임 → 주인장과의 관계(얇게) → 방문·올린 상품(한 줄)을 쌓아
+  // 카드 높이를 낮추고 구분선 없이 정보를 압축한다.
+  // 값 강조는 <strong> 대신 <b>를 써 .session-panel strong{display:block} 충돌을 피한다.
+  // 편집(연필) 아이콘만 마이페이지(내 정보 수정) 진입점으로 둔다 — 아이콘 패키지 미사용, 인라인 SVG
   sessionPanel.innerHTML = `
-    <div class="profile">
-      <div class="profile-info">
-        <div class="nickname">${escapeHtml(user.nickname)}${isAdmin(user) ? " · 관리자" : ""}</div>
-        <div class="permission">${isAdmin(user) ? "공지 편집 권한이 있습니다." : "판매 등록과 찜하기가 가능합니다."}</div>
+    <div class="profile-card">
+      <div class="profile-card-avatar" aria-hidden="true">${avatarInner}</div>
+      <div class="profile-card-info">
+        <div class="profile-card-nameline">
+          <p class="profile-card-name">${escapeHtml(user.nickname)}</p>
+          ${roleBadge}
+        </div>
+        <p class="profile-card-relationship">${escapeHtml(relationship || "주인장과의 관계 미입력")}</p>
+        <p class="profile-card-meta">방문 <b>${escapeHtml(visitTime || "미정")}</b> · 올린 상품 <b>${productCount}개</b></p>
       </div>
-      <div class="profile-actions">
-        <a class="secondary-button profile-mypage" href="mypage.html">마이페이지</a>
-        <button class="profile-logout-link" id="logoutButton" type="button">나가기 &gt;</button>
-      </div>
+      <a class="profile-card-edit" href="mypage.html" aria-label="내 정보 수정" title="내 정보 수정">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+      </a>
     </div>
   `;
-
-  document.querySelector("#logoutButton").addEventListener("click", () => {
-    logout();
-  });
 }
 
 function getVisibleProducts() {
@@ -273,255 +296,6 @@ function renderProducts() {
   });
 }
 
-function formatProductDate(value) {
-  if (!value) return "등록일 없음";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "등록일 없음";
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function renderProductDetailHeroImage(imageUrl, title) {
-  productDetailHeroImage.replaceChildren();
-
-  if (!imageUrl) {
-    productDetailHeroImage.setAttribute("aria-label", "대표 이미지 없음");
-    return;
-  }
-
-  const image = document.createElement("img");
-  image.src = imageUrl;
-  image.alt = `${title} 대표 이미지`;
-  image.style.display = "block";
-  image.style.width = "100%";
-  image.style.height = "100%";
-  image.style.objectFit = "contain";
-  productDetailHeroImage.append(image);
-  productDetailHeroImage.setAttribute("aria-label", `${title} 대표 이미지`);
-}
-
-function updateProductDetailImage(index) {
-  const lastIndex = currentDetailImages.length - 1;
-  currentDetailImageIndex = Math.min(Math.max(index, 0), lastIndex);
-  const imageUrl = currentDetailImages[currentDetailImageIndex];
-  const title = productDetailTitle.textContent || "상품";
-
-  renderProductDetailHeroImage(imageUrl, title);
-  const hasMultipleImages = currentDetailImages.length > 1;
-
-  productDetailPrevButton?.classList.toggle("hidden", !hasMultipleImages);
-  productDetailNextButton?.classList.toggle("hidden", !hasMultipleImages);
-  productDetailImageStatus?.classList.toggle("hidden", !hasMultipleImages);
-  productDetailImageDots?.classList.toggle("hidden", !hasMultipleImages);
-
-  if (productDetailImageStatus) {
-    productDetailImageStatus.textContent = `${currentDetailImageIndex + 1}/${currentDetailImages.length}`;
-  }
-
-  if (productDetailImageDots) {
-    productDetailImageDots.replaceChildren();
-    currentDetailImages.forEach((dotImageUrl, dotIndex) => {
-      const dot = document.createElement("button");
-      dot.type = "button";
-      dot.className = "detail-image-dot";
-      dot.classList.toggle("active", dotIndex === currentDetailImageIndex);
-      dot.setAttribute("aria-label", `${dotIndex + 1}번째 이미지 보기`);
-      dot.setAttribute(
-        "aria-current",
-        dotIndex === currentDetailImageIndex ? "true" : "false",
-      );
-      dot.setAttribute(
-        "aria-pressed",
-        String(dotIndex === currentDetailImageIndex),
-      );
-      dot.addEventListener("click", () => updateProductDetailImage(dotIndex));
-
-      const thumbnail = document.createElement("img");
-      thumbnail.src = dotImageUrl;
-      thumbnail.alt = "";
-      thumbnail.setAttribute("aria-hidden", "true");
-      dot.append(thumbnail);
-      productDetailImageDots.append(dot);
-    });
-  }
-}
-
-function moveProductDetailImage(step) {
-  if (currentDetailImages.length <= 1) return;
-
-  const nextIndex =
-    (currentDetailImageIndex + step + currentDetailImages.length) %
-    currentDetailImages.length;
-  updateProductDetailImage(nextIndex);
-}
-
-function updateImageViewer(index) {
-  if (!imageViewerImage || currentDetailImages.length === 0) return;
-
-  const lastIndex = currentDetailImages.length - 1;
-  currentViewerImageIndex = Math.min(Math.max(index, 0), lastIndex);
-  const imageUrl = currentDetailImages[currentViewerImageIndex];
-  const title = productDetailTitle.textContent || "상품";
-  const hasMultipleImages = currentDetailImages.length > 1;
-
-  imageViewerImage.src = imageUrl;
-  imageViewerImage.alt = `${title} 확대 이미지`;
-  imageViewerPrevButton?.classList.toggle("hidden", !hasMultipleImages);
-  imageViewerNextButton?.classList.toggle("hidden", !hasMultipleImages);
-  imageViewerStatus?.classList.toggle("hidden", !hasMultipleImages);
-
-  if (imageViewerStatus) {
-    imageViewerStatus.textContent = `${currentViewerImageIndex + 1}/${currentDetailImages.length}`;
-  }
-}
-
-function moveImageViewer(step) {
-  if (currentDetailImages.length <= 1) return;
-
-  const nextIndex =
-    (currentViewerImageIndex + step + currentDetailImages.length) %
-    currentDetailImages.length;
-  updateImageViewer(nextIndex);
-}
-
-function openImageViewer() {
-  if (!imageViewerModal || currentDetailImages.length === 0) return;
-
-  updateImageViewer(currentDetailImageIndex);
-
-  if (!imageViewerModal.open) {
-    imageViewerModal.showModal();
-  }
-}
-
-function closeImageViewer() {
-  if (!imageViewerModal?.open) return;
-
-  imageViewerModal.close();
-}
-
-function renderProductDetailImages(images) {
-  const productImages = normalizeImageUrls(images);
-  currentDetailImages = productImages.length
-    ? productImages
-    : [DEFAULT_PRODUCT_IMAGE];
-
-  updateProductDetailImage(0);
-}
-
-function updateProductDetailLikeState(likeCount, likedByCurrentUser) {
-  productDetailLikeCount.textContent = likeCount;
-  productDetailLikeButton?.classList.toggle("active", likedByCurrentUser);
-  productDetailLikeButton?.setAttribute(
-    "aria-pressed",
-    String(likedByCurrentUser),
-  );
-  productDetailLikeButton?.setAttribute(
-    "aria-label",
-    likedByCurrentUser
-      ? `찜 취소, 현재 ${likeCount}개`
-      : `찜하기, 현재 ${likeCount}개`,
-  );
-  productDetailLikeButton?.setAttribute(
-    "title",
-    likedByCurrentUser ? "찜 취소" : "찜하기",
-  );
-}
-
-function openProductDetail(product) {
-  if (!productDetailModal) return;
-
-  currentProductId = product.id;
-  const title = product.name || "상품명 없음";
-  const numericPrice = Number(product.price);
-  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const images = getProductImages(product);
-  const likes = Array.isArray(product.likes) ? product.likes : [];
-  const likeCount = likes.length;
-  const likedByCurrentUser = Boolean(
-    state.currentUser && likes.includes(state.currentUser.nickname),
-  );
-  const editableByCurrentUser = canEditProduct(product);
-  const deletableByCurrentUser = canDeleteProduct(product);
-
-  productDetailCategory.textContent = product.category || "카테고리 없음";
-  productDetailTitle.textContent = title;
-  productDetailPrice.textContent = formatPrice(price);
-  renderProductDetailImages(images);
-  productDetailDescription.textContent =
-    product.description || "상품 설명이 없습니다.";
-  productDetailSellerDate.textContent = `${product.seller || "알 수 없음"} · ${formatProductDate(product.createdAt)}`;
-  updateProductDetailLikeState(likeCount, likedByCurrentUser);
-  productDetailEditButton?.classList.toggle("hidden", !editableByCurrentUser);
-  productDetailDeleteButton?.classList.toggle(
-    "hidden",
-    !deletableByCurrentUser,
-  );
-  productDetailMoreButton?.classList.toggle(
-    "hidden",
-    !(editableByCurrentUser || deletableByCurrentUser),
-  );
-  closeProductDetailMoreMenu();
-  productDetailModal.showModal();
-}
-
-function closeProductDetailModal() {
-  currentProductId = null;
-  closeImageViewer();
-  closeProductDetailMoreMenu();
-  productDetailModal.close();
-}
-
-function closeProductDetailMoreMenu() {
-  productDetailMorePopover?.classList.add("hidden");
-  productDetailMoreButton?.setAttribute("aria-expanded", "false");
-}
-
-function toggleProductDetailMoreMenu() {
-  if (!productDetailMorePopover || !productDetailMoreButton) return;
-
-  const isOpening = productDetailMorePopover.classList.contains("hidden");
-  productDetailMorePopover.classList.toggle("hidden", !isOpening);
-  productDetailMoreButton.setAttribute("aria-expanded", String(isOpening));
-}
-
-function handleDetailImageDragStart(event) {
-  if (currentDetailImages.length <= 1) return;
-
-  detailImageDidSwipe = false;
-  detailImageDragStartX = event.clientX;
-}
-
-function handleDetailImageDragEnd(event) {
-  if (detailImageDragStartX === null) return;
-
-  const dragDistance = event.clientX - detailImageDragStartX;
-  detailImageDragStartX = null;
-
-  if (Math.abs(dragDistance) < 48) return;
-
-  detailImageDidSwipe = true;
-  moveProductDetailImage(dragDistance > 0 ? -1 : 1);
-}
-
-function refreshOpenProductDetailLike() {
-  if (currentProductId === null || !productDetailModal.open) return;
-
-  const product = findProductById(currentProductId);
-  if (!product) return;
-
-  const likeCount = Array.isArray(product.likes) ? product.likes.length : 0;
-  const likedByCurrentUser = Boolean(
-    state.currentUser && product.likes.includes(state.currentUser.nickname),
-  );
-
-  updateProductDetailLikeState(likeCount, likedByCurrentUser);
-}
-
 function render() {
   renderSession();
   renderProducts();
@@ -536,7 +310,162 @@ function setView(viewName) {
     panel.classList.toggle("active", panel.dataset.viewPanel === viewName);
   });
 
+  // 판매 글 작성 FAB는 마켓 탭에서만 노출한다
+  fabLayer?.classList.toggle("hidden", viewName !== "market");
+
+  // 친구들 탭을 처음 열 때만 참석자 타임라인을 지연 로딩한다
+  if (viewName === "friends") ensureFriendsLoaded();
+
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ---- 판매 글 작성/수정 시트(모달) ----------------------------------------
+// 판매 폼은 별도 탭이 아니라 FAB로 여는 시트형 팝업이다.
+function openSellModal() {
+  if (!sellModal || sellModal.open) return;
+  sellModal.showModal();
+}
+
+function closeSellModal() {
+  if (sellModal?.open) sellModal.close();
+}
+
+// FAB(+)는 항상 "새 글 작성" 상태로 폼을 초기화한 뒤 시트를 연다
+function openSellModalForCreate() {
+  setProductFormMode();
+  openSellModal();
+  productFormFields.name.focus();
+}
+
+// ---- 친구들 타임라인 (친구맵 통합) ---------------------------------------
+// 방문시간 텍스트에서 시작 시각을 뽑아 "분 단위 정수"로 반환한다.
+// visit_time은 자유 텍스트라("토14:00-16:00", "오후 3시~" 등) 첫 HH:MM만 정렬 기준으로 쓴다.
+// 파싱이 안 되면 null을 돌려줘 "시간 미정"으로 분류되게 한다.
+function parseVisitStart(visitTime) {
+  const text = String(visitTime || "").trim();
+  if (!text) return null;
+
+  const match = text.match(/(\d{1,2})(?::(\d{2}))?/);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = match[2] ? Number(match[2]) : 0;
+  // 24시간제 범위를 벗어난 값은 신뢰할 수 없으므로 미정 처리
+  if (hour > 23 || minute > 59) return null;
+
+  return hour * 60 + minute;
+}
+
+// 정렬용 분(minutes)을 "HH:MM" 뱃지 문구로 변환한다
+// 정렬용 분(minutes)을 "오후 N시" 뱃지 문구로 변환한다.
+// 12시간제로 오전/오후를 붙이고, 분이 0이 아니면 "오후 N시 M분"까지 표기한다. (예: 840 -> "오후 2시")
+function formatTimeBadge(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const period = hour < 12 ? "오전" : "오후";
+  // 0시·12시는 12로, 그 외 오후 시각은 12를 빼서 1~12 범위로 맞춘다
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  const minuteText = minute > 0 ? ` ${minute}분` : "";
+  return `${period} ${hour12}시${minuteText}`;
+}
+
+// 친구 카드 1건을 템플릿에서 복제해 채운다.
+// timeLabel이 없으면(시간 미정) 뱃지 자리를 "미정"으로 표시한다.
+function createFriendCard(friend, timeLabel) {
+  const node = friendCardTemplate.content.cloneNode(true);
+  const card = node.querySelector(".friend-card");
+  const badge = node.querySelector(".time-badge");
+  const avatarImage = node.querySelector(".friend-avatar-image");
+  const avatarInitials = node.querySelector(".friend-avatar-initials");
+  const nickname = node.querySelector(".friend-nickname");
+  const relationship = node.querySelector(".friend-relationship");
+
+  badge.textContent = timeLabel || "미정";
+
+  // 로그인한 본인 카드는 브랜드 보더로 강조하고 "나" 뱃지를 붙여 한눈에 구분한다.
+  // 참석자 목록엔 id가 없어 닉네임으로 본인 여부를 판별한다.
+  const isMe = Boolean(
+    state.currentUser && friend.nickname === state.currentUser.nickname,
+  );
+  card.classList.toggle("is-me", isMe);
+
+  const hasImage = Boolean(friend.avatar_url);
+  avatarImage.classList.toggle("hidden", !hasImage);
+  avatarInitials.classList.toggle("hidden", hasImage);
+  if (hasImage) {
+    avatarImage.src = friend.avatar_url;
+    avatarImage.alt = `${friend.nickname || "참석자"}의 프로필 사진`;
+  } else {
+    avatarInitials.textContent = getInitials(friend.nickname);
+  }
+
+  nickname.textContent = friend.nickname || "이름 없음";
+  // 본인 카드에는 닉네임 옆에 "나" 뱃지를 덧붙인다
+  if (isMe) {
+    const meBadge = document.createElement("span");
+    meBadge.className = "friend-me-badge";
+    meBadge.textContent = "나";
+    nickname.append(" ", meBadge);
+  }
+
+  // 관계 미입력자는 빈칸 대신 안내 문구로 채워 카드 높이를 일정하게 유지한다
+  relationship.textContent = friend.relationship?.trim()
+    ? friend.relationship.trim()
+    : "-";
+
+  return node;
+}
+
+// 방문시간이 있는 사람은 시각 오름차순으로, 없는 사람은 "시간 미정" 그룹으로 하단에 그린다
+function renderTimeline(friends) {
+  timeline.innerHTML = "";
+  friendCount.textContent = `${friends.length}명`;
+
+  if (friends.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "아직 등록된 참석자가 없습니다.";
+    timeline.append(empty);
+    return;
+  }
+
+  // 시작 시각을 미리 계산해 두고, 있는 그룹/없는 그룹으로 나눈다
+  const withTime = [];
+  const withoutTime = [];
+  friends.forEach((friend) => {
+    const start = parseVisitStart(friend.visit_time);
+    if (start === null) {
+      withoutTime.push(friend);
+    } else {
+      withTime.push({ friend, start });
+    }
+  });
+
+  withTime.sort((a, b) => a.start - b.start);
+  withTime.forEach(({ friend, start }) => {
+    timeline.append(createFriendCard(friend, formatTimeBadge(start)));
+  });
+
+  // 시간 미정 그룹은 구분 헤더를 붙여 하단에 모아 보여준다
+  if (withoutTime.length > 0) {
+    const divider = document.createElement("p");
+    divider.className = "timeline-divider";
+    divider.textContent = "시간 미정";
+    timeline.append(divider);
+
+    withoutTime.forEach((friend) => {
+      timeline.append(createFriendCard(friend, ""));
+    });
+  }
+}
+
+// 친구들 탭 최초 진입 시 참석자 목록을 서버에서 받아 타임라인을 그린다
+async function ensureFriendsLoaded() {
+  if (friendsLoaded) return;
+  friendsLoaded = true;
+
+  const friends = await fetchFriends();
+  renderTimeline(friends);
 }
 
 function getMarketCategories() {
@@ -574,24 +503,6 @@ function syncMarketCategoryFilterOptions() {
 
   selectedMarketCategory = selectedCategory;
   marketCategoryFilter.value = selectedMarketCategory;
-}
-
-function findProductById(productId) {
-  return state.products.find((item) => item.id === productId);
-}
-
-function canEditProduct(product) {
-  return Boolean(
-    product &&
-      state.currentUser &&
-      product.seller === state.currentUser.nickname,
-  );
-}
-
-function canDeleteProduct(product) {
-  return Boolean(
-    product && state.currentUser && (canEditProduct(product) || isAdmin()),
-  );
 }
 
 function releaseProductImagePreviewObjectUrls() {
@@ -760,7 +671,9 @@ function handleProductImageSelection(event) {
 }
 
 function parseProductPrice(value) {
-  const rawPrice = String(value || "").replaceAll(",", "").trim();
+  const rawPrice = String(value || "")
+    .replaceAll(",", "")
+    .trim();
   if (rawPrice === "나눔") return 0;
 
   const numericPriceText = rawPrice.endsWith("원")
@@ -786,23 +699,42 @@ function removeProductImage(type, index) {
   renderProductImagePreview();
 }
 
-function startProductEdit() {
-  if (currentProductId === null) return;
-
-  const product = findProductById(currentProductId);
-  if (!canEditProduct(product)) return;
-
+// 상세 팝업에서 "수정"을 누르면 상세 모듈이 이 콜백을 호출한다(모달은 모듈이 이미 닫음).
+// 판매 폼은 index에만 있으므로, 폼을 수정 모드로 채운 뒤 작성 시트를 연다.
+function openProductEditForm(product) {
   setProductFormMode(product);
-  closeProductDetailModal();
-  setView("sell");
+  openSellModal();
   productFormFields.name.focus();
 }
 
+// 다른 페이지(마이페이지 등)에서 index.html?edit=<id>로 넘어오면 해당 상품 수정 시트를 자동으로 연다.
+function openEditFromQueryParam() {
+  const params = new URLSearchParams(window.location.search);
+  const editId = params.get("edit");
+  if (!editId) return;
+
+  // id 타입(숫자/문자)이 달라도 매칭되도록 문자열로 비교한다
+  const product = state.products.find(
+    (item) => String(item.id) === String(editId),
+  );
+
+  // 잘못된 id거나 내 상품이 아니면 폼을 열지 않고 URL만 정리한다
+  if (product && canEditProduct(product)) {
+    openProductEditForm(product);
+  }
+
+  // 새로고침/뒤로가기 때 수정 시트가 다시 뜨지 않도록 쿼리스트링을 제거한다
+  const cleanUrl = window.location.pathname + window.location.hash;
+  window.history.replaceState({}, "", cleanUrl);
+}
+
 async function createProduct(productPayload) {
-  return getClient().from("products").insert({
-    ...productPayload,
-    seller: state.currentUser.nickname,
-  });
+  return getClient()
+    .from("products")
+    .insert({
+      ...productPayload,
+      seller: state.currentUser.nickname,
+    });
 }
 
 async function updateProduct(product, productPayload) {
@@ -811,45 +743,6 @@ async function updateProduct(product, productPayload) {
     .update(productPayload)
     .eq("id", product.id)
     .eq("seller", state.currentUser.nickname);
-}
-
-async function deleteProduct(product) {
-  const { data, error } = await getClient()
-    .from("products")
-    .delete()
-    .eq("id", product.id)
-    .select("id");
-
-  if (error || !data?.length) {
-    return { ok: false, error: error || new Error("삭제된 행이 없습니다.") };
-  }
-
-  state.products = state.products.filter((item) => item.id !== product.id);
-  return { ok: true };
-}
-
-async function deleteCurrentProduct() {
-  if (currentProductId === null) return;
-
-  const product = findProductById(currentProductId);
-  if (!canDeleteProduct(product)) return;
-  if (!window.confirm("이 상품을 삭제할까요?")) return;
-
-  try {
-    const result = await deleteProduct(product);
-    if (result.ok) {
-      closeProductDetailModal();
-      renderProducts();
-      await loadProductsFromSupabase();
-      return;
-    }
-
-    console.warn("상품을 삭제하지 못했습니다.", result.error);
-  } catch (error) {
-    console.warn("상품 삭제 중 오류가 발생했습니다.", error);
-  }
-
-  showToast("상품을 삭제하지 못했습니다.", { type: "error" });
 }
 
 function getProductFormValues() {
@@ -940,6 +833,7 @@ async function saveProductForm() {
   setProductFormMode();
   await loadCustomCategoryOptions();
   await loadProductsFromSupabase();
+  closeSellModal();
   setView("market");
   return true;
 }
@@ -947,36 +841,6 @@ async function saveProductForm() {
 async function handleProductFormSubmit(event) {
   event.preventDefault();
   await saveProductForm();
-}
-
-async function toggleLike(productId) {
-  if (!state.currentUser) {
-    showToast("로그인 후 찜할 수 있습니다.", { type: "error" });
-    return;
-  }
-
-  const product = findProductById(productId);
-  if (!product) return;
-
-  const nickname = state.currentUser.nickname;
-  // 이미 찜했으면 내 닉네임을 빼고, 아니면 추가한 새 배열을 만든다
-  const nextLikes = product.likes.includes(nickname)
-    ? product.likes.filter((name) => name !== nickname)
-    : [...product.likes, nickname];
-
-  // 서버 products.likes 컬럼에 반영해야 다른 기기/마이페이지에서도 동일하게 보인다
-  const result = await updateProductLikes(product.id, nextLikes);
-  if (!result.ok) {
-    showToast("찜 정보를 저장하지 못했습니다.", { type: "error" });
-    refreshOpenProductDetailLike();
-    return;
-  }
-
-  // 서버가 확정한 likes로 로컬 상태를 맞춘 뒤 다시 그린다
-  product.likes = result.likes;
-  saveState();
-  renderProducts();
-  refreshOpenProductDetailLike();
 }
 
 async function saveCustomCategory(category) {
@@ -1066,57 +930,6 @@ function updateCategoryCustomInputVisibility() {
   }
 }
 
-async function handleProductDetailLikeClick() {
-  if (currentProductId === null) return;
-
-  await toggleLike(currentProductId);
-}
-
-function handleProductDetailPointerCancel() {
-  detailImageDragStartX = null;
-  detailImageDidSwipe = false;
-}
-
-function handleProductDetailHeroClick() {
-  if (detailImageDidSwipe) {
-    detailImageDidSwipe = false;
-    return;
-  }
-
-  openImageViewer();
-}
-
-function handleProductDetailModalClick(event) {
-  if (event.target === productDetailModal) {
-    closeProductDetailModal();
-    return;
-  }
-
-  if (!event.target.closest(".detail-more-menu")) {
-    closeProductDetailMoreMenu();
-  }
-}
-
-function handleImageViewerModalClick(event) {
-  if (
-    event.target === imageViewerModal ||
-    event.target.classList.contains("image-viewer-panel") ||
-    event.target.classList.contains("image-viewer-stage")
-  ) {
-    closeImageViewer();
-  }
-}
-
-function handleImageViewerKeydown(event) {
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    moveImageViewer(-1);
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    moveImageViewer(1);
-  }
-}
-
 function handleProductImagePreviewClick(event) {
   const button = event.target.closest(".remove-image-button");
   if (!button) return;
@@ -1132,59 +945,11 @@ function handleMarketCategoryFilterChange(event) {
   renderProducts();
 }
 
-function bindProductDetailModalEvents() {
-  productDetailCloseButton.addEventListener("click", closeProductDetailModal);
-  productDetailLikeButton?.addEventListener(
-    "click",
-    handleProductDetailLikeClick,
-  );
-  productDetailEditButton?.addEventListener("click", startProductEdit);
-  productDetailDeleteButton?.addEventListener("click", deleteCurrentProduct);
-  productDetailMoreButton?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleProductDetailMoreMenu();
-  });
-  productDetailPrevButton?.addEventListener("click", () => {
-    moveProductDetailImage(-1);
-  });
-  productDetailNextButton?.addEventListener("click", () => {
-    moveProductDetailImage(1);
-  });
-  productDetailHeroImage?.addEventListener(
-    "pointerdown",
-    handleDetailImageDragStart,
-  );
-  productDetailHeroImage?.addEventListener(
-    "pointerup",
-    handleDetailImageDragEnd,
-  );
-  productDetailHeroImage?.addEventListener(
-    "pointercancel",
-    handleProductDetailPointerCancel,
-  );
-  productDetailHeroImage?.addEventListener(
-    "click",
-    handleProductDetailHeroClick,
-  );
-  productDetailModal.addEventListener("click", handleProductDetailModalClick);
-}
-
-function bindImageViewerEvents() {
-  imageViewerCloseButton?.addEventListener("click", closeImageViewer);
-  imageViewerPrevButton?.addEventListener("click", () => {
-    moveImageViewer(-1);
-  });
-  imageViewerNextButton?.addEventListener("click", () => {
-    moveImageViewer(1);
-  });
-  imageViewerModal?.addEventListener("click", handleImageViewerModalClick);
-  imageViewerModal?.addEventListener("keydown", handleImageViewerKeydown);
-}
-
 function bindProductFormEvents() {
   uploadForm.addEventListener("submit", handleProductFormSubmit);
   cancelProductEditButton.addEventListener("click", () => {
     setProductFormMode();
+    closeSellModal();
   });
   photoUploadButton?.addEventListener("click", () => {
     productFormFields.imageInput?.click();
@@ -1217,11 +982,29 @@ function bindNavigationEvents() {
   );
 }
 
+function bindSellModalEvents() {
+  openSellButton?.addEventListener("click", openSellModalForCreate);
+  sellCloseButton?.addEventListener("click", closeSellModal);
+  // 시트 바깥(배경)을 누르면 닫는다 — 상품 상세 모달과 동일한 UX
+  sellModal?.addEventListener("click", (event) => {
+    if (event.target === sellModal) closeSellModal();
+  });
+}
+
 function bindEventListeners() {
-  bindProductDetailModalEvents();
-  bindImageViewerEvents();
+  // 상세 팝업(공용 모듈)에 화면별 동작을 주입한다.
+  // - onEdit: 수정 시 판매 폼(이 페이지 전용)을 수정 모드로 연다
+  // - onChange: 찜/삭제 후 메인피드와 프로필 카드를 다시 그린다
+  initProductDetail({
+    onEdit: openProductEditForm,
+    onChange: () => {
+      renderProducts();
+      renderSession();
+    },
+  });
   bindProductFormEvents();
   bindNavigationEvents();
+  bindSellModalEvents();
 }
 
 async function init() {
@@ -1237,6 +1020,10 @@ async function init() {
   render();
   await initNotice();
   await loadProductsFromSupabase();
+
+  // 마이페이지 등에서 index.html?edit=<id>로 넘어온 경우 해당 상품 수정 시트를 연다.
+  // 상품 목록이 로드된 뒤에 실행해야 대상 상품을 찾을 수 있다.
+  openEditFromQueryParam();
 }
 
 bindEventListeners();

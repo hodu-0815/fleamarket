@@ -268,6 +268,23 @@ export async function updateProfile({
   return { ok: true, profile: state.profile };
 }
 
+// 친구맵용: 참석자 전체의 공개 프로필을 조회한다.
+// (RLS "Authenticated can view all profiles" 정책 덕에 로그인 사용자는 전체 열람 가능)
+export async function fetchFriends() {
+  const client = await setupSupabase();
+  if (!client) return [];
+
+  const { data, error } = await client
+    .from("profiles")
+    .select("nickname, relationship, visit_time, avatar_url");
+
+  if (error) {
+    console.error("친구 목록을 불러오지 못했습니다.", error);
+    return [];
+  }
+  return data || [];
+}
+
 // 상품 찜(likes)을 서버에 저장한다.
 // likes는 찜한 사용자의 닉네임 배열이며, products.likes(text[]) 컬럼에 그대로 반영한다.
 // 토글(추가/삭제) 판단은 호출부(도메인)에서 하고, 여기서는 최종 배열을 저장만 한다.

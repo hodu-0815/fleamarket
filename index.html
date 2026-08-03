@@ -22,7 +22,7 @@
 
       <nav class="tabbar" aria-label="주요 메뉴">
         <button class="tab-button active" id="marketTabButton" type="button" data-view="market">마켓</button>
-        <button class="tab-button" id="sellTabButton" type="button" data-view="sell">판매하기</button>
+        <button class="tab-button" id="friendsTabButton" type="button" data-view="friends">방문자</button>
       </nav>
 
       <main class="layout">
@@ -44,7 +44,80 @@
           </section>
         </section>
 
-        <section class="upload-section view-panel" id="sellView" data-view-panel="sell" aria-labelledby="uploadTitle">
+        <section class="view-panel" id="friendsView" data-view-panel="friends">
+          <section class="mypage-section" aria-labelledby="timelineTitle">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Timeline</p>
+                <h2 id="timelineTitle">언제 누가 오나요?</h2>
+              </div>
+              <p class="market-count" id="friendCount"></p>
+            </div>
+            <!-- 방문 시간순으로 참석자를 세로로 그리는 타임라인 컨테이너 -->
+            <div class="timeline" id="timeline"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <!-- 마켓 탭에서만 노출되는 판매 글 작성 플로팅 버튼 -->
+    <div class="fab-layer" id="fabLayer">
+      <button class="fab" id="openSellButton" type="button" aria-label="판매 글 올리기" title="판매 글 올리기">
+        <span aria-hidden="true">+</span>
+      </button>
+    </div>
+
+    <template id="productTemplate">
+      <article class="product-card">
+        <img class="product-image" alt="" />
+        <div class="product-body">
+          <div class="product-topline">
+            <h3></h3>
+            <strong class="price"></strong>
+          </div>
+          <div class="product-meta">
+           <span class="seller"></span>
+
+          <div class="like-row">
+            <span class="heart-icon">♥</span>
+            <span class="like-count"></span>
+          </div>
+        </div>
+        </div>
+      </article>
+    </template>
+
+    <!-- 타임라인 카드 1건: 시각 뱃지 + 썸네일(이미지 or 이니셜) + 닉네임 + 관계 -->
+    <template id="friendCardTemplate">
+      <article class="timeline-item">
+        <div class="timeline-time">
+          <span class="time-badge"></span>
+        </div>
+        <div class="friend-card">
+          <div class="friend-avatar" aria-hidden="true">
+            <img class="friend-avatar-image hidden" alt="" />
+            <span class="friend-avatar-initials"></span>
+          </div>
+          <div class="friend-meta">
+            <p class="friend-nickname"></p>
+            <p class="friend-relationship"></p>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <!-- 판매 글 작성/수정 폼: 아래에서 올라오는 시트형 팝업 -->
+    <dialog class="sell-modal" id="sellModal" aria-labelledby="uploadTitle">
+      <section class="sell-panel">
+        <header class="detail-sheet-header">
+          <span class="detail-sheet-handle" aria-hidden="true"></span>
+          <div class="detail-header-actions">
+            <button class="dialog-close-button" id="sellCloseButton" type="button" aria-label="판매 글 폼 닫기" title="닫기">
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </header>
+        <div class="sell-body">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Sell</p>
@@ -84,29 +157,9 @@
             <button class="primary-button wide" id="productSubmitButton" type="submit">등록하기</button>
             <button class="secondary-button wide hidden" id="cancelProductEditButton" type="button">수정 취소</button>
           </form>
-        </section>
-      </main>
-    </div>
-
-    <template id="productTemplate">
-      <article class="product-card">
-        <img class="product-image" alt="" />
-        <div class="product-body">
-          <div class="product-topline">
-            <h3></h3>
-            <strong class="price"></strong>
-          </div>
-          <div class="product-meta">
-           <span class="seller"></span>
-
-          <div class="like-row">
-            <span class="heart-icon">♥</span>
-            <span class="like-count"></span>
-          </div>
         </div>
-        </div>
-      </article>
-    </template>
+      </section>
+    </dialog>
 
     <dialog class="product-detail-modal" id="productDetailModal" aria-labelledby="productDetailTitle">
       <article class="product-detail-panel">
