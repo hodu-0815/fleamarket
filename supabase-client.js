@@ -16,35 +16,10 @@ let supabaseClient = null;
 // .env 파일에서 Supabase 접속 정보를 읽는다.
 // 번들러가 없는 정적 사이트라 빌드타임 주입 대신 런타임에 fetch로 읽는다.
 async function loadSupabaseEnv() {
-  if (window.ENV?.VITE_SUPABASE_URL && window.ENV?.VITE_SUPABASE_ANON_KEY) {
-    return window.ENV;
-  }
-
-  try {
-    const response = await fetch(".env", { cache: "no-store" });
-    if (!response.ok) return {};
-
-    const text = await response.text();
-    // KEY=VALUE 형식만 파싱하고 주석(#)과 빈 줄은 건너뛴다
-    return Object.fromEntries(
-      text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#") && line.includes("="))
-        .map((line) => {
-          const [key, ...valueParts] = line.split("=");
-          return [
-            key.trim(),
-            valueParts
-              .join("=")
-              .trim()
-              .replace(/^["']|["']$/g, ""),
-          ];
-        }),
-    );
-  } catch {
-    return {};
-  }
+  return {
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  };
 }
 
 // Supabase 클라이언트를 한 번만 생성해 공유한다.
