@@ -76,13 +76,19 @@
             <strong class="price"></strong>
           </div>
           <div class="product-meta">
-           <span class="seller"></span>
+            <span class="seller-line">
+              <span class="seller-thumb" aria-hidden="true">
+                <img class="seller-thumb-image hidden" alt="" />
+                <span class="seller-thumb-initials"></span>
+              </span>
+              <span class="seller"></span>
+            </span>
 
-          <div class="like-row">
-            <span class="heart-icon">♥</span>
-            <span class="like-count"></span>
+            <div class="like-row">
+              <span class="heart-icon">♥</span>
+              <span class="like-count"></span>
+            </div>
           </div>
-        </div>
         </div>
       </article>
     </template>
@@ -194,7 +200,13 @@
         </section>
 
         <section class="detail-content" aria-label="상품 정보">
-          <p class="detail-seller-date">판매자 · 등록일</p>
+          <div class="detail-seller-date">
+            <span class="seller-thumb detail-seller-thumb" aria-hidden="true">
+              <img class="seller-thumb-image detail-seller-avatar-image hidden" alt="" />
+              <span class="seller-thumb-initials detail-seller-avatar-initials"></span>
+            </span>
+            <span class="detail-seller-text">판매자 · 등록일</span>
+          </div>
           <div class="detail-title-row">
             <div class="detail-title-stack">
               <h2 id="productDetailTitle">상품명</h2>

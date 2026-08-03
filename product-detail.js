@@ -16,11 +16,20 @@ const LEGACY_DEFAULT_PRODUCT_IMAGE =
 const productDetailModal = document.querySelector("#productDetailModal");
 const productDetailHeroImage = document.querySelector(".detail-hero-image");
 const productDetailSellerDate = document.querySelector(".detail-seller-date");
+const productDetailSellerAvatarImage = document.querySelector(
+  ".detail-seller-avatar-image",
+);
+const productDetailSellerAvatarInitials = document.querySelector(
+  ".detail-seller-avatar-initials",
+);
+const productDetailSellerText = document.querySelector(".detail-seller-text");
 const productDetailCategory = document.querySelector(".detail-category");
 const productDetailTitle = document.querySelector("#productDetailTitle");
 const productDetailPrice = document.querySelector(".detail-price");
 const productDetailDescription = document.querySelector(".detail-description");
-const productDetailCloseButton = document.querySelector(".dialog-close-button");
+const productDetailCloseButton = productDetailModal?.querySelector(
+  ".dialog-close-button",
+);
 const productDetailLikeButton = document.querySelector(".detail-like-button");
 const productDetailLikeCount = document.querySelector(".detail-like-count");
 const productDetailPrevButton = document.querySelector(".detail-image-prev");
@@ -110,6 +119,53 @@ function formatProductDate(value) {
     month: "short",
     day: "numeric",
   }).format(date);
+}
+
+function getInitials(nickname) {
+  const text = String(nickname || "").trim();
+  if (!text) return "?";
+  return Array.from(text)[0];
+}
+
+function getSellerProfile(nickname) {
+  const seller = String(nickname || "").trim();
+  if (!seller) return null;
+
+  if (state.currentUser?.nickname === seller && state.profile) {
+    return {
+      nickname: seller,
+      avatarUrl: state.profile.avatarUrl || "",
+    };
+  }
+
+  return state.sellerProfiles?.[seller] || null;
+}
+
+function renderProductDetailSeller(product) {
+  const seller = product.seller || "알 수 없음";
+  const profile = getSellerProfile(seller);
+  const avatarUrl = String(profile?.avatarUrl || "").trim();
+  const hasAvatar = Boolean(avatarUrl);
+
+  if (productDetailSellerText) {
+    productDetailSellerText.textContent = `${seller} · ${formatProductDate(product.createdAt)}`;
+  } else if (productDetailSellerDate) {
+    productDetailSellerDate.textContent = `${seller} · ${formatProductDate(product.createdAt)}`;
+  }
+
+  productDetailSellerAvatarImage?.classList.toggle("hidden", !hasAvatar);
+  productDetailSellerAvatarInitials?.classList.toggle("hidden", hasAvatar);
+
+  if (hasAvatar && productDetailSellerAvatarImage) {
+    productDetailSellerAvatarImage.src = avatarUrl;
+    productDetailSellerAvatarImage.alt = `${seller}의 프로필 사진`;
+  } else {
+    productDetailSellerAvatarImage?.removeAttribute("src");
+    if (productDetailSellerAvatarImage) productDetailSellerAvatarImage.alt = "";
+    if (productDetailSellerAvatarInitials) {
+      productDetailSellerAvatarInitials.textContent = getInitials(seller);
+    }
+  }
 }
 
 function renderProductDetailHeroImage(imageUrl, title) {
@@ -284,7 +340,7 @@ export function openProductDetail(product) {
   renderProductDetailImages(images);
   productDetailDescription.textContent =
     product.description || "상품 설명이 없습니다.";
-  productDetailSellerDate.textContent = `${product.seller || "알 수 없음"} · ${formatProductDate(product.createdAt)}`;
+  renderProductDetailSeller(product);
   updateProductDetailLikeState(likeCount, likedByCurrentUser);
   productDetailEditButton?.classList.toggle("hidden", !editableByCurrentUser);
   productDetailDeleteButton?.classList.toggle(
@@ -494,7 +550,7 @@ function handleImageViewerKeydown(event) {
 }
 
 function bindProductDetailModalEvents() {
-  productDetailCloseButton.addEventListener("click", closeProductDetailModal);
+  productDetailCloseButton?.addEventListener("click", closeProductDetailModal);
   productDetailLikeButton?.addEventListener(
     "click",
     handleProductDetailLikeClick,

@@ -96,6 +96,77 @@ function normalizeProduct(row) {
   };
 }
 
+function getSellerProfile(nickname) {
+  const seller = String(nickname || "").trim();
+  if (!seller) return null;
+
+  if (state.currentUser?.nickname === seller && state.profile) {
+    return {
+      nickname: seller,
+      avatarUrl: state.profile.avatarUrl || "",
+    };
+  }
+
+  return state.sellerProfiles?.[seller] || null;
+}
+
+function renderSellerThumb(root, nickname) {
+  if (!root) return;
+
+  const seller = String(nickname || "").trim();
+  const profile = getSellerProfile(seller);
+  const avatarUrl = String(profile?.avatarUrl || "").trim();
+  const image = root.querySelector(".seller-thumb-image");
+  const initials = root.querySelector(".seller-thumb-initials");
+  const hasAvatar = Boolean(avatarUrl);
+
+  image?.classList.toggle("hidden", !hasAvatar);
+  initials?.classList.toggle("hidden", hasAvatar);
+
+  if (hasAvatar && image) {
+    image.src = avatarUrl;
+    image.alt = `${seller}의 프로필 사진`;
+  } else {
+    image?.removeAttribute("src");
+    if (image) image.alt = "";
+    if (initials) initials.textContent = getInitials(seller);
+  }
+}
+
+async function loadSellerProfilesForProducts() {
+  const client = getClient();
+  if (!client) return;
+
+  const nicknames = [
+    ...new Set(
+      state.products
+        .map((product) => String(product.seller || "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (nicknames.length === 0) return;
+
+  const { data, error } = await client
+    .from("profiles")
+    .select("nickname, avatar_url")
+    .in("nickname", nicknames);
+
+  if (error) {
+    console.error("판매자 프로필을 불러오지 못했습니다.", error);
+    return;
+  }
+
+  state.sellerProfiles = Object.fromEntries(
+    (data || []).map((profile) => [
+      profile.nickname,
+      {
+        nickname: profile.nickname,
+        avatarUrl: profile.avatar_url || "",
+      },
+    ]),
+  );
+}
+
 async function loadProducts() {
   const client = getClient();
   if (!client) {
@@ -121,6 +192,7 @@ async function loadProducts() {
 
   // 찜(likes)은 서버 products.likes 컬럼을 그대로 신뢰한다 (더 이상 localStorage로 덮어쓰지 않음)
   state.products = (data || []).map(normalizeProduct);
+  await loadSellerProfilesForProducts();
   saveState();
 }
 
@@ -176,6 +248,7 @@ function createProductCard(product, { showUnlike = false, hideMeta = false } = {
   const title = node.querySelector("h3");
   const price = node.querySelector(".price");
   const sellerRow = node.querySelector(".seller-row");
+  const sellerLine = node.querySelector(".seller-line");
   const seller = node.querySelector(".seller");
   const postedAt = node.querySelector(".posted-at");
   const actions = node.querySelector(".mypage-card-actions");
@@ -190,6 +263,7 @@ function createProductCard(product, { showUnlike = false, hideMeta = false } = {
     sellerRow.remove();
   } else {
     seller.textContent = `판매자 ${product.seller}`;
+    renderSellerThumb(sellerLine, product.seller);
     postedAt.textContent = formatDate(product.createdAt);
   }
 
