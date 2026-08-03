@@ -8,16 +8,26 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
+      <header class="topbar mypage-topbar">
+        <!-- 뒤로가기는 단순 페이지 이동이라 JS 없이 링크로 처리한다 -->
+        <a class="icon-back-button" href="index.html" aria-label="마켓으로" title="마켓으로">
+          <span aria-hidden="true">←</span>
+        </a>
         <div>
           <p class="eyebrow">My Page</p>
           <h1>마이페이지</h1>
         </div>
-        <div class="session-panel" id="mypageSessionPanel"></div>
       </header>
 
+      <!-- 마이페이지 3개 섹션을 탭으로 나눈다. 메인화면 탭바(.tabbar/.tab-button)와 동일 패턴 재사용 -->
+      <nav class="tabbar mypage-tabbar" aria-label="마이페이지 메뉴">
+        <button class="tab-button active" type="button" data-view="profile">내 정보</button>
+        <button class="tab-button" type="button" data-view="liked">내 찜</button>
+        <button class="tab-button" type="button" data-view="listings">내 상품</button>
+      </nav>
+
       <main class="layout mypage-layout">
-        <section class="mypage-section" aria-labelledby="profileTitle">
+        <section class="mypage-section view-panel active" data-view-panel="profile" aria-labelledby="profileTitle">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Profile</p>
@@ -27,14 +37,45 @@
 
           <form class="profile-form" id="profileForm">
             <div class="avatar-row">
-              <div class="avatar-preview" id="avatarPreview" aria-hidden="true">
-                <img class="avatar-image hidden" id="avatarImage" alt="" />
-                <span class="avatar-initials" id="avatarInitials"></span>
+              <!-- 썸네일(원형 클리핑) 위에 수정 버튼을 겹쳐 올리기 위한 래퍼. overflow가 잘리지 않도록 클리핑은 avatar-preview에만 준다 -->
+              <div class="avatar-thumb">
+                <div class="avatar-preview" id="avatarPreview" aria-hidden="true">
+                  <img class="avatar-image hidden" id="avatarImage" alt="" />
+                  <span class="avatar-initials" id="avatarInitials"></span>
+                </div>
+                <!-- 기본 파일 인풋은 시각적으로만 숨기고(키보드 포커스는 유지), 아래 원형 label 버튼이 클릭 시 파일 선택창을 연다 -->
+                <input
+                  id="avatarInput"
+                  name="avatar"
+                  type="file"
+                  accept="image/*"
+                  class="file-input"
+                  aria-label="프로필 사진 변경"
+                />
+                <label
+                  class="avatar-edit-button"
+                  for="avatarInput"
+                  title="프로필 사진 변경"
+                  aria-label="프로필 사진 변경"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                </label>
               </div>
               <div class="avatar-fields">
                 <p class="profile-nickname" id="profileNickname"></p>
-                <label for="avatarInput">프로필 사진</label>
-                <input id="avatarInput" name="avatar" type="file" accept="image/*" />
               </div>
             </div>
 
@@ -56,25 +97,40 @@
             />
 
             <label for="visitTimeInput">방문 시간</label>
-            <input
-              id="visitTimeInput"
-              name="visitTime"
-              maxlength="40"
-              placeholder="예: 토 14:00–16:00"
-            />
-
-            <label for="dinnerInput">저녁 먹을까요?</label>
-            <select id="dinnerInput" name="dinner">
-              <option value="undecided">미정</option>
-              <option value="yes">먹을게요</option>
-              <option value="no">안 먹어요</option>
+            <!-- 오후 2시~6시 방문 시각. HH:MM 형식이라 친구맵 타임라인 정렬에 그대로 쓰인다 -->
+            <select id="visitTimeInput" name="visitTime">
+              <option value="">미정</option>
+              <option value="14:00">오후 2시</option>
+              <option value="15:00">오후 3시</option>
+              <option value="16:00">오후 4시</option>
+              <option value="17:00">오후 5시</option>
+              <option value="18:00">오후 6시</option>
             </select>
+
+            <span class="field-label" id="dinnerLabel">저녁 먹을까요?</span>
+            <!-- 셀렉트 대신 3지선다 버튼. 값은 클릭 시 JS(setDinnerValue)에서 active 상태로 관리한다 -->
+            <div
+              class="choice-group"
+              id="dinnerInput"
+              role="group"
+              aria-labelledby="dinnerLabel"
+            >
+              <button type="button" class="choice-button" data-value="undecided">
+                미정
+              </button>
+              <button type="button" class="choice-button" data-value="yes">
+                먹을게요
+              </button>
+              <button type="button" class="choice-button" data-value="no">
+                안 먹어요
+              </button>
+            </div>
 
             <button class="primary-button wide" type="submit">저장하기</button>
           </form>
         </section>
 
-        <section class="mypage-section" aria-labelledby="likedTitle">
+        <section class="mypage-section view-panel" data-view-panel="liked" aria-labelledby="likedTitle">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Wishlist</p>
@@ -85,7 +141,7 @@
           <div class="product-grid" id="likedGrid"></div>
         </section>
 
-        <section class="mypage-section" aria-labelledby="myProductsTitle">
+        <section class="mypage-section view-panel" data-view-panel="listings" aria-labelledby="myProductsTitle">
           <div class="section-heading">
             <div>
               <p class="eyebrow">My Listings</p>
@@ -95,6 +151,11 @@
           </div>
           <div class="product-grid" id="myProductsGrid"></div>
         </section>
+
+        <!-- 로그아웃은 실수 방지를 위해 화면 최하단에 보조 버튼으로 둔다 -->
+        <button class="secondary-button wide mypage-logout" id="mypageLogoutButton" type="button">
+          로그아웃
+        </button>
       </main>
     </div>
 
@@ -114,6 +175,79 @@
         </div>
       </article>
     </template>
+
+    <!-- 상품 상세 팝업: 메인피드와 동일한 상세 보기를 마이페이지에서도 재사용한다(product-detail.js 공용 모듈) -->
+    <dialog class="product-detail-modal" id="productDetailModal" aria-labelledby="productDetailTitle">
+      <article class="product-detail-panel">
+        <header class="detail-sheet-header">
+          <span class="detail-sheet-handle" aria-hidden="true"></span>
+          <div class="detail-header-actions">
+            <div class="detail-more-menu">
+              <button class="detail-more-button hidden" type="button" aria-label="상품 더보기" title="더보기" aria-expanded="false">
+                <span aria-hidden="true">⋮</span>
+              </button>
+              <div class="detail-more-popover hidden" role="menu">
+                <button class="detail-edit-button" type="button" role="menuitem">수정</button>
+                <button class="detail-delete-button" type="button" role="menuitem">삭제</button>
+              </div>
+            </div>
+            <button class="dialog-close-button" type="button" aria-label="상품 상세 닫기" title="닫기">
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="detail-media" aria-label="상품 이미지">
+          <div class="detail-hero-image" aria-label="대표 이미지"></div>
+          <button class="detail-image-nav detail-image-prev hidden" type="button" aria-label="이전 이미지">
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button class="detail-image-nav detail-image-next hidden" type="button" aria-label="다음 이미지">
+            <span aria-hidden="true">›</span>
+          </button>
+          <div class="detail-image-status hidden" aria-live="polite"></div>
+          <div class="detail-image-dots hidden" aria-label="상품 이미지 페이지"></div>
+        </section>
+
+        <section class="detail-content" aria-label="상품 정보">
+          <p class="detail-seller-date">판매자 · 등록일</p>
+          <div class="detail-title-row">
+            <div class="detail-title-stack">
+              <h2 id="productDetailTitle">상품명</h2>
+              <p class="detail-price-row">
+                <strong class="detail-price">나눔</strong>
+                <span aria-hidden="true">|</span>
+                <span class="detail-category">카테고리</span>
+              </p>
+            </div>
+            <button class="detail-like-button" type="button" aria-label="찜 개수" title="찜">
+              <span class="detail-like-icon" aria-hidden="true">♥</span>
+              <span class="detail-like-count">0</span>
+            </button>
+          </div>
+          <p class="detail-description">상품 설명</p>
+        </section>
+
+      </article>
+    </dialog>
+
+    <dialog class="image-viewer-modal" id="imageViewerModal" aria-label="상품 이미지 확대 보기">
+      <div class="image-viewer-panel">
+        <button class="image-viewer-close" type="button" aria-label="확대 이미지 닫기" title="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+        <button class="image-viewer-nav image-viewer-prev hidden" type="button" aria-label="이전 이미지">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <figure class="image-viewer-stage">
+          <img class="image-viewer-image" alt="" />
+          <figcaption class="image-viewer-status hidden" aria-live="polite"></figcaption>
+        </figure>
+        <button class="image-viewer-nav image-viewer-next hidden" type="button" aria-label="다음 이미지">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
+    </dialog>
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 

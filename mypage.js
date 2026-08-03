@@ -1,5 +1,5 @@
 import { state, saveState, createEmptyProfile } from "./store.js";
-import { escapeHtml, formatPrice, formatDate } from "./utils.js?v=price-free-v2";
+import { formatPrice, formatDate } from "./utils.js?v=price-free-v2";
 import { requireAuth, logout } from "./auth.js";
 import {
   setupSupabase,
@@ -9,8 +9,13 @@ import {
   updateProductLikes,
 } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+// 상품 상세 팝업은 메인피드와 동일한 공용 모듈을 그대로 재사용한다
+import {
+  initProductDetail,
+  openProductDetail,
+  getProductImages,
+} from "./product-detail.js";
 
-const sessionPanel = document.querySelector("#mypageSessionPanel");
 const likedGrid = document.querySelector("#likedGrid");
 const likedCount = document.querySelector("#likedCount");
 const myProductsGrid = document.querySelector("#myProductsGrid");
@@ -29,12 +34,43 @@ function getProductPhoto(row) {
   return photo || DEFAULT_PRODUCT_IMAGE;
 }
 
+const tabButtons = document.querySelectorAll(".mypage-tabbar .tab-button");
+const viewPanels = document.querySelectorAll("[data-view-panel]");
+
 const profileForm = document.querySelector("#profileForm");
 const profileNickname = document.querySelector("#profileNickname");
 const relationshipInput = document.querySelector("#relationshipInput");
 const bioInput = document.querySelector("#bioInput");
 const visitTimeInput = document.querySelector("#visitTimeInput");
-const dinnerInput = document.querySelector("#dinnerInput");
+// 저녁 여부는 셀렉트 대신 버튼 그룹으로 받는다. 그룹 컨테이너와 각 버튼을 잡아둔다
+const dinnerGroup = document.querySelector("#dinnerInput");
+const dinnerButtons = dinnerGroup
+  ? dinnerGroup.querySelectorAll(".choice-button")
+  : [];
+
+// 허용된 값만 반영하고, 나머지는 안전하게 "미정"으로 처리한다
+function setDinnerValue(value) {
+  const next = ["undecided", "yes", "no"].includes(value) ? value : "undecided";
+  dinnerButtons.forEach((button) => {
+    const isSelected = button.dataset.value === next;
+    button.classList.toggle("active", isSelected);
+    // 토글 버튼 접근성: 선택 여부를 aria-pressed로 노출한다
+    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+  });
+}
+
+// 현재 선택된 버튼의 값을 읽는다. 선택이 없으면 "미정"
+function getDinnerValue() {
+  const active = dinnerGroup?.querySelector(".choice-button.active");
+  return active ? active.dataset.value : "undecided";
+}
+
+// 버튼 클릭 시 해당 값으로 선택 상태를 전환한다
+function bindDinnerButtons() {
+  dinnerButtons.forEach((button) => {
+    button.addEventListener("click", () => setDinnerValue(button.dataset.value));
+  });
+}
 const avatarInput = document.querySelector("#avatarInput");
 const avatarImage = document.querySelector("#avatarImage");
 const avatarInitials = document.querySelector("#avatarInitials");
@@ -45,6 +81,9 @@ function normalizeProduct(row) {
     id: row.id,
     name: row.name,
     photo: getProductPhoto(row),
+    // 상세 팝업은 여러 장 이미지 캐러셀을 쓰므로 카드용 photo와 별개로 전체 이미지 배열도 담아둔다
+    images: getProductImages(row),
+    category: row.category || "카테고리 없음",
     description: row.description || "",
     price: Number(row.price || 0),
     seller: row.seller || "알 수 없음",
@@ -85,19 +124,8 @@ async function loadProducts() {
   saveState();
 }
 
-function renderSession() {
-  const user = state.currentUser;
-  if (!user) return;
-
-  sessionPanel.innerHTML = `
-    <strong>${escapeHtml(user.nickname)}</strong>
-    <p>내 정보와 찜·판매 목록을 관리하세요.</p>
-    <div class="session-actions">
-      <a class="secondary-button session-link" href="index.html">마켓으로</a>
-      <button class="secondary-button" id="mypageLogoutButton" type="button">로그아웃</button>
-    </div>
-  `;
-
+// 하단 로그아웃 버튼은 정적 마크업이라 초기화 때 한 번만 바인딩한다
+function bindLogout() {
   document
     .querySelector("#mypageLogoutButton")
     .addEventListener("click", () => {
@@ -136,16 +164,18 @@ function fillProfileForm() {
   relationshipInput.value = profile.relationship || "";
   bioInput.value = profile.bio || "";
   visitTimeInput.value = profile.visitTime || "";
-  dinnerInput.value = profile.dinner || "undecided";
+  setDinnerValue(profile.dinner || "undecided");
   renderAvatar(profile.avatarUrl, user?.nickname);
 }
 
-function createProductCard(product, { showUnlike = false } = {}) {
+// hideMeta=true면 판매자·등록일 메타 줄을 숨긴다 (찜 목록 카드는 이미지/이름/가격만 노출)
+function createProductCard(product, { showUnlike = false, hideMeta = false } = {}) {
   const node = productTemplate.content.cloneNode(true);
   const card = node.querySelector(".product-card");
   const image = node.querySelector(".product-image");
   const title = node.querySelector("h3");
   const price = node.querySelector(".price");
+  const sellerRow = node.querySelector(".seller-row");
   const seller = node.querySelector(".seller");
   const postedAt = node.querySelector(".posted-at");
   const actions = node.querySelector(".mypage-card-actions");
@@ -154,19 +184,32 @@ function createProductCard(product, { showUnlike = false } = {}) {
   image.alt = `${product.name} 사진`;
   title.textContent = product.name;
   price.textContent = formatPrice(product.price);
-  seller.textContent = `판매자 ${product.seller}`;
-  postedAt.textContent = formatDate(product.createdAt);
+
+  // 찜 카드는 판매자/등록일 줄을 통째로 제거하고, 그 외 카드에서만 값을 채운다
+  if (hideMeta) {
+    sellerRow.remove();
+  } else {
+    seller.textContent = `판매자 ${product.seller}`;
+    postedAt.textContent = formatDate(product.createdAt);
+  }
 
   if (showUnlike) {
     const unlikeButton = document.createElement("button");
     unlikeButton.type = "button";
     unlikeButton.className = "secondary-button wide";
     unlikeButton.textContent = "찜 취소";
-    unlikeButton.addEventListener("click", () => unlikeProduct(product.id));
+    // 찜 취소 버튼 클릭이 카드 클릭(상세 팝업 열기)으로 번지지 않도록 전파를 막는다
+    unlikeButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      unlikeProduct(product.id);
+    });
     actions.append(unlikeButton);
   } else {
     actions.remove();
   }
+
+  // 카드를 누르면 메인피드와 동일한 상세 팝업을 연다
+  card.addEventListener("click", () => openProductDetail(product));
 
   return card;
 }
@@ -189,7 +232,9 @@ function renderLikedList() {
   }
 
   liked.forEach((product) => {
-    likedGrid.append(createProductCard(product, { showUnlike: true }));
+    likedGrid.append(
+      createProductCard(product, { showUnlike: true, hideMeta: true }),
+    );
   });
 }
 
@@ -217,7 +262,6 @@ function renderMyProducts() {
 }
 
 function render() {
-  renderSession();
   fillProfileForm();
   renderLikedList();
   renderMyProducts();
@@ -269,7 +313,7 @@ async function handleProfileSubmit(event) {
   const relationship = relationshipInput.value.trim();
   const bio = bioInput.value.trim();
   const visitTime = visitTimeInput.value.trim();
-  const dinner = dinnerInput.value;
+  const dinner = getDinnerValue();
   const file = avatarInput.files?.[0];
 
   if (bio.length > 40) {
@@ -307,8 +351,41 @@ async function handleProfileSubmit(event) {
   showToast("내 정보를 저장했습니다.", { type: "success" });
 }
 
+// 선택한 탭에 맞춰 버튼 활성 상태와 보이는 섹션(패널)을 토글한다 (메인화면 setView와 동일 패턴)
+function setView(viewName) {
+  tabButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === viewName);
+  });
+
+  viewPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.viewPanel === viewName);
+  });
+}
+
+// 탭 버튼 클릭 시 해당 섹션으로 전환한다
+function bindTabs() {
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => setView(button.dataset.view));
+  });
+}
+
 export function initMypage() {
   bindAvatarPreview();
+  bindLogout();
+  bindTabs();
+  bindDinnerButtons();
+  // 상세 팝업(공용 모듈) 초기화.
+  // - onEdit: 수정 폼은 index.html에만 있으므로, 편집 대상 id를 실어 메인 페이지로 이동해 수정 시트를 연다
+  // - onChange: 찜/삭제로 목록이 바뀌면 내 찜·내 상품 목록을 다시 그린다
+  initProductDetail({
+    onEdit: (product) => {
+      window.location.href = `index.html?edit=${encodeURIComponent(product.id)}`;
+    },
+    onChange: () => {
+      renderLikedList();
+      renderMyProducts();
+    },
+  });
   profileForm.addEventListener("submit", handleProfileSubmit);
   render();
 }
