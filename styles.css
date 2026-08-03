@@ -645,13 +645,26 @@ h3 {
 
 form {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 label {
   color: #3f3934;
   font-size: 0.86rem;
   font-weight: 800;
+}
+
+/* 필수 입력 표시: 라벨 옆 별표(메인 컬러)로 필수 필드를 구분한다 */
+.required-mark {
+  color: var(--brand);
+  font-weight: 800;
+}
+
+/* 선택 입력 표시: 필수와 대비되게 흐린 톤의 보조 라벨로 둔다 */
+.optional-mark {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 input,
@@ -664,6 +677,22 @@ textarea {
   color: var(--ink);
   background: #fff;
   outline: none;
+}
+
+/* 셀렉트는 기본 화살표를 없애고, 톤에 맞춘 커스텀 chevron을 우측 여백을 두고 배치한다 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%2377716b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+/* 포커스 시 화살표도 브랜드 색으로 맞춰 톤앤매너를 통일한다 */
+select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%2316aff0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 input:focus,
@@ -819,6 +848,11 @@ textarea {
   width: 100%;
 }
 
+/* 폼 마지막 CTA 버튼은 입력 영역과 시각적으로 떨어뜨려 눌러야 할 액션임을 강조한다 (공통) */
+.primary-button.wide {
+  margin-top: 6px;
+}
+
 .icon-button {
   width: 42px;
   color: var(--brand-dark);
@@ -860,7 +894,9 @@ textarea {
   grid-row: 1;
   justify-self: end;
   min-height: 36px;
-  padding: 8px 28px 8px 10px;
+  /* 커스텀 화살표(right 14px)와 텍스트가 겹치지 않도록 우측 여백을 넉넉히 둔다 */
+  padding: 8px 34px 8px 10px;
+  background-position: right 12px center;
   font-size: 0.82rem;
 }
 
@@ -1708,8 +1744,9 @@ textarea {
   display: none !important;
 }
 
+/* CTA(입장하기/회원가입) 아래 전환 링크는 버튼과 충분히 떨어뜨려 여백을 준다 */
 .auth-switch {
-  margin: 4px 0 0;
+  margin: 16px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
   text-align: center;
