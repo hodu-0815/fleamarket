@@ -13,8 +13,7 @@ function idToEmail(id) {
 
 let supabaseClient = null;
 
-// .env 파일에서 Supabase 접속 정보를 읽는다.
-// 번들러가 없는 정적 사이트라 빌드타임 주입 대신 런타임에 fetch로 읽는다.
+// Supabase 접속 정보를 Vercel 환경변수에서 읽는다.
 async function loadSupabaseEnv() {
   return {
     VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
@@ -22,6 +21,21 @@ async function loadSupabaseEnv() {
   };
 }
 
+async function setupSupabase() {
+  const env = await loadSupabaseEnv();
+
+  const url = env.VITE_SUPABASE_URL;
+  const key = env.VITE_SUPABASE_ANON_KEY;
+
+  if (!window.supabase || !url || !key) {
+    console.error(
+      "Supabase 설정을 찾을 수 없습니다. Vercel 환경변수를 확인하세요.",
+    );
+    return null;
+  }
+
+  return window.supabase.createClient(url, key);
+}
 // Supabase 클라이언트를 한 번만 생성해 공유한다.
 // 여러 곳(auth 가드, 상품 조회)에서 호출해도 같은 인스턴스를 재사용해야
 // 인증 세션이 하나로 유지되고 GoTrueClient 중복 경고도 피할 수 있다.
