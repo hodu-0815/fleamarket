@@ -82,10 +82,14 @@ body.notice-modal-open {
   min-height: 38px;
   border: 0;
   border-bottom: 1px solid var(--divider);
-  border-radius: 0;
-  padding: 8px 0;
+  border-radius: 8px;
+  /* hover 하이라이트에 여백을 주되(가로 8px), 같은 크기의 음수 마진으로
+     텍스트·구분선 위치는 기존 그대로 유지한다(앱쉘 좌우 패딩 16px 안쪽이라 넘치지 않음) */
+  padding: 8px;
+  margin: 0 -8px;
   color: #252525;
   background: transparent;
+  cursor: pointer;
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.35;
@@ -94,13 +98,14 @@ body.notice-modal-open {
     transform 0.16s ease;
 }
 
+/* hover 시 아이템 배경을 살짝 어둡게(잉크색 옅은 틴트) 깔아 어느 항목을 가리키는지 보이게 한다 */
 .notice-item:hover {
   color: var(--brand-dark);
-  background: transparent;
+  background: rgba(37, 37, 37, 0.05);
 }
 
 .notice-item:active {
-  background: transparent;
+  background: rgba(37, 37, 37, 0.08);
   transform: scale(0.99);
 }
 

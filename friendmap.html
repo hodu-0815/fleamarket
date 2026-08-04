@@ -31,26 +31,22 @@
       </main>
     </div>
 
-    <!-- 타임라인 카드 1건: 시각 뱃지 + 썸네일(이미지 or 이니셜) + [닉네임·관계] + 자기소개 -->
+    <!-- 타임라인 카드 1건: 썸네일(이미지 or 이니셜) + [닉네임·관계] + 자기소개.
+         시각 뱃지·색점·레일은 같은 시각끼리 묶은 그룹 단위로 JS가 생성한다. -->
     <template id="friendCardTemplate">
-      <article class="timeline-item">
-        <div class="timeline-time">
-          <span class="time-badge"></span>
+      <div class="friend-card">
+        <div class="friend-avatar" aria-hidden="true">
+          <img class="friend-avatar-image hidden" alt="" />
+          <span class="friend-avatar-initials"></span>
         </div>
-        <div class="friend-card">
-          <div class="friend-avatar" aria-hidden="true">
-            <img class="friend-avatar-image hidden" alt="" />
-            <span class="friend-avatar-initials"></span>
-          </div>
-          <div class="friend-meta">
-            <p class="friend-nickname">
-              <span class="friend-nickname-name"></span>
-              <span class="friend-relationship"></span>
-            </p>
-            <p class="friend-bio"></p>
-          </div>
+        <div class="friend-meta">
+          <p class="friend-nickname">
+            <span class="friend-nickname-name"></span>
+            <span class="friend-relationship"></span>
+          </p>
+          <p class="friend-bio"></p>
         </div>
-      </article>
+      </div>
     </template>
 
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>

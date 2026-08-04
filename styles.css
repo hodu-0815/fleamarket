@@ -15,6 +15,19 @@
   --heart: var(--brand);
   --error: #d64550;
   --shadow: 0 10px 28px rgba(37, 37, 37, 0.08);
+  /* 카드용 옅은 그림자: 타임라인처럼 작은 카드가 겹칠 때 과하지 않게 */
+  --shadow-soft: 0 2px 8px rgba(37, 37, 37, 0.05);
+  /* 친구맵 타임라인: 시간대 구분용 색 팔레트 (진한 색 + 연한 배경 짝, 5색 순환) */
+  --slot-1: #16aff0;
+  --slot-1-soft: rgba(22, 175, 240, 0.14);
+  --slot-2: #f2a02c;
+  --slot-2-soft: rgba(242, 160, 44, 0.16);
+  --slot-3: #2f9e6f;
+  --slot-3-soft: rgba(47, 158, 111, 0.16);
+  --slot-4: #e8618c;
+  --slot-4-soft: rgba(232, 97, 140, 0.16);
+  --slot-5: #7b6ef0;
+  --slot-5-soft: rgba(123, 110, 240, 0.16);
 }
 
 * {
@@ -41,7 +54,12 @@ textarea {
   font: inherit;
 }
 
-button {
+/* 버튼·셀렉트뿐 아니라 role=button 요소, 클릭 가능한 상품 카드까지
+   hover 커서를 손가락(pointer)으로 통일해 '누를 수 있음'을 일관되게 알린다 */
+button,
+select,
+[role="button"],
+.product-card {
   cursor: pointer;
 }
 
@@ -1577,50 +1595,112 @@ textarea {
   text-align: right;
 }
 
-/* 친구맵: 방문시간순 세로 타임라인 */
+/* 친구맵: 방문시간순 세로 타임라인 (같은 시각은 한 그룹으로 묶어 시간을 한 번만 노출) */
 .timeline {
   position: relative;
   display: grid;
-  gap: 12px;
+  gap: 20px;
 }
 
-/* 시각 뱃지들을 세로로 잇는 가운데 레일 (뱃지가 위에 얹혀 점처럼 보인다) */
-.timeline::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 24px;
-  width: 2px;
-  background: var(--line);
-}
-
-.timeline-item {
+/* 한 시간대 그룹: [시간 뱃지 | 카드들] 2열, 두 열 사이로 색 레일과 점이 지난다 */
+.timeline-group {
   position: relative;
   display: grid;
-  grid-template-columns: 50px 1fr;
-  gap: 12px;
-  align-items: center;
+  grid-template-columns: 60px 1fr;
+  gap: 16px;
 }
 
+/* 이 그룹 점에서 다음 그룹까지 시간대 색으로 레일을 잇는다. 마지막 그룹은 꼬리를 그리지 않는다 */
+.timeline-group::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: -20px;
+  left: 78px;
+  width: 2px;
+  background: var(--slot-color, var(--line));
+  opacity: 0.35;
+  transform: translateX(-50%);
+}
+
+.timeline-group:last-child::before {
+  display: none;
+}
+
+/* 레일 위 색점: 시간대 시작 지점을 표시 (배경색 테두리로 레일과 분리) */
+.timeline-dot {
+  position: absolute;
+  top: 4px;
+  left: 78px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--slot-color, var(--muted));
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--slot-color, var(--muted));
+  transform: translateX(-50%);
+}
+
+/* 시간 뱃지: 레일 쪽(오른쪽)에 붙는 연한 알약형 라벨 */
 .timeline-time {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 1px;
 }
 
 .time-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 46px;
-  padding: 5px 6px;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--ink);
-  font-size: 0.72rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--slot-color, var(--muted));
+  background: var(--slot-soft, var(--brand-soft));
+  font-size: 0.7rem;
   font-weight: 800;
   white-space: nowrap;
+}
+
+/* 같은 시각 참석자 카드들을 세로로 쌓는다 */
+.timeline-group-cards {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  /* 카드가 레일(세로선)에 붙지 않도록 왼쪽에 여백을 준다 */
+  padding-left: 12px;
+}
+
+/* 시간대별 색 지정 (5색 순환) + 미정 그룹은 중립색 */
+.time-slot-1 {
+  --slot-color: var(--slot-1);
+  --slot-soft: var(--slot-1-soft);
+}
+.time-slot-2 {
+  --slot-color: var(--slot-2);
+  --slot-soft: var(--slot-2-soft);
+}
+.time-slot-3 {
+  --slot-color: var(--slot-3);
+  --slot-soft: var(--slot-3-soft);
+}
+.time-slot-4 {
+  --slot-color: var(--slot-4);
+  --slot-soft: var(--slot-4-soft);
+}
+.time-slot-5 {
+  --slot-color: var(--slot-5);
+  --slot-soft: var(--slot-5-soft);
+}
+.time-slot-none {
+  --slot-color: var(--muted);
+  --slot-soft: rgba(119, 113, 107, 0.12);
+}
+
+/* 아무도 안 고른 빈 시간대: 뱃지·점을 흐리게 해 참석자가 있는 시간과 구분한다 */
+.timeline-group.is-empty .time-badge,
+.timeline-group.is-empty .timeline-dot {
+  opacity: 0.4;
 }
 
 .friend-card {
@@ -1630,8 +1710,9 @@ textarea {
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
 /* 본인 카드: 브랜드 보더 + 옅은 브랜드 배경으로 내 카드임을 강조한다 */
@@ -1721,16 +1802,6 @@ textarea {
 /* 자기소개 미입력 안내 문구는 실제 소개글과 구분되게 조금 더 흐리게 처리 */
 .friend-bio-empty {
   color: #b3a698;
-}
-
-/* "시간 미정" 구분 라벨 */
-.timeline-divider {
-  margin: 6px 0 0;
-  padding-top: 10px;
-  border-top: 1px dashed #d3c8bb;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
 }
 
 /* 판매 글 작성 FAB: 앱쉘(430px) 폭 안쪽 우하단에 고정한다 */
