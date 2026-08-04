@@ -451,8 +451,9 @@ function createFriendCard(friend, timeLabel) {
   const badge = node.querySelector(".time-badge");
   const avatarImage = node.querySelector(".friend-avatar-image");
   const avatarInitials = node.querySelector(".friend-avatar-initials");
-  const nickname = node.querySelector(".friend-nickname");
+  const nickname = node.querySelector(".friend-nickname-name");
   const relationship = node.querySelector(".friend-relationship");
+  const bio = node.querySelector(".friend-bio");
 
   badge.textContent = timeLabel || "미정";
 
@@ -474,18 +475,22 @@ function createFriendCard(friend, timeLabel) {
   }
 
   nickname.textContent = friend.nickname || "이름 없음";
-  // 본인 카드에는 닉네임 옆에 "나" 뱃지를 덧붙인다
-  if (isMe) {
-    const meBadge = document.createElement("span");
-    meBadge.className = "friend-me-badge";
-    meBadge.textContent = "나";
-    nickname.append(" ", meBadge);
+
+  // 관계는 닉네임 옆에 함께 노출한다. 미입력이면 빈 자리를 남기지 않도록 숨긴다.
+  const relationshipText = friend.relationship?.trim();
+  if (relationshipText) {
+    relationship.textContent = relationshipText;
+    relationship.classList.remove("hidden");
+  } else {
+    relationship.textContent = "";
+    relationship.classList.add("hidden");
   }
 
-  // 관계 미입력자는 빈칸 대신 안내 문구로 채워 카드 높이를 일정하게 유지한다
-  relationship.textContent = friend.relationship?.trim()
-    ? friend.relationship.trim()
-    : "-";
+  // 자기소개는 카드 하단에 최대 두 줄로 노출하고, 넘치면 CSS(line-clamp)로 말줄임 처리한다.
+  // 미입력자는 빈칸 대신 "-"로 채워 카드 높이를 일정하게 유지한다.
+  const bioText = friend.bio?.trim();
+  bio.textContent = bioText || "-";
+  bio.classList.toggle("friend-bio-empty", !bioText);
 
   return node;
 }

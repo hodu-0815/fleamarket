@@ -248,7 +248,7 @@ export async function fetchFriends() {
 
   const { data, error } = await client
     .from("profiles")
-    .select("nickname, relationship, visit_time, avatar_url");
+    .select("nickname, relationship, bio, visit_time, avatar_url");
 
   if (error) {
     console.error("친구 목록을 불러오지 못했습니다.", error);

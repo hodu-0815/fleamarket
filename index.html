@@ -93,7 +93,7 @@
       </article>
     </template>
 
-    <!-- 타임라인 카드 1건: 시각 뱃지 + 썸네일(이미지 or 이니셜) + 닉네임 + 관계 -->
+    <!-- 타임라인 카드 1건: 시각 뱃지 + 썸네일(이미지 or 이니셜) + [닉네임·관계] + 자기소개 -->
     <template id="friendCardTemplate">
       <article class="timeline-item">
         <div class="timeline-time">
@@ -105,8 +105,11 @@
             <span class="friend-avatar-initials"></span>
           </div>
           <div class="friend-meta">
-            <p class="friend-nickname"></p>
-            <p class="friend-relationship"></p>
+            <p class="friend-nickname">
+              <span class="friend-nickname-name"></span>
+              <span class="friend-relationship"></span>
+            </p>
+            <p class="friend-bio"></p>
           </div>
         </div>
       </article>
